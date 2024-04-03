@@ -13,7 +13,7 @@
 
 (* DEFINE *)
 DEFINE COMMAND {
-    name            TEXT(256)   UNIQUE,             (* only the DEFINE block field can have UNIQUE Constraint *)
+    name            TEXT(256)
     description     TEXT(256)   CHECK(LENGTH(description) > 10),
 };
 
@@ -33,6 +33,11 @@ CONFIG Server: {
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND), 
     alive_time      TIME,    
+    server_spec     {
+        (* Anonymous DEFINE *)
+        server_owner    TEXT(64),
+        server_size     INT(12) CHECK(server_size > 100),
+    } OPTIONAL,
 };
 
 CONFIG Runner: {
@@ -45,7 +50,7 @@ CONFIG Runner: {
 };
 
 (* TRIGGER *)
-TRIGGER ServerChangeAction WHEN CHANGE 'Server' {
+TRIGGER ServerChangeAction WHEN CHANGE Server {
     # python interpreter integration
     if Server.run = 0:
         Runner.flag = 0
@@ -55,6 +60,13 @@ TRIGGER ServerChangeAction WHEN CHANGE 'Server' {
 
     if ASSERT_EQUAL(target=Server.port, dest=8000):
         return CANFIG_WARN(msg="the server port use port 8000")
+};
+
+TRIGGER ServerChangeAction WHEN CHANGE Server.commands {
+    # python interpreter integration
+    if err_msg := ASSERT_UNQIUE(list=Server.commands, 
+                                getter=lambda obj: obj['name']):
+        return CANFIG_ERR(msg=err_msg)
 };
 
 (* SLICE *)

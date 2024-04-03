@@ -1,4 +1,6 @@
-use proto.cand
+use "proto.cand" [
+    UserConfig
+]
 
 Server: {
     name:            "erdao_server",
@@ -20,12 +22,6 @@ Server: {
 Runner: {
     runner_name:     "erdao runner",
     commands:        
-    [
-        {
-            name:  "start",
-            description: "start the runner"
-        }
-    ],
     nickname:        ["mio runner", "yui runner"], 
 };
 

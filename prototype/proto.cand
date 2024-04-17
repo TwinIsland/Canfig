@@ -1,52 +1,51 @@
-<version>       "1.0.0";
-<min_sup>       "0.1.0";
-<author>        "erdao";
-<description>   "this is an example CanfigDefine";
-<log>           "./canfig.log";
-<doc>           "./proto.md";
-<help>          "
+@version       "1.0.0";
+@min_sup       "0.1.0";
+@author        "erdao";
+@description   "this is an example CanfigDefine";
+@log           "./canfig.log";
+@doc           "./proto.md";
+@help          "
         Welcome to use Sample CanfigDefine!
         you need to specified slice to use
         1. if you are user, please use UserConfig SLICE
         2. if you are developer, use DevConfig SLICE
 ";
 
-(* DEFINE *)
-DEFINE COMMAND {
-    name            TEXT(256)
-    description     TEXT(256)   CHECK(LENGTH(description) > 10),
+(* STRUCT *)
+STRUCT COMMAND {
+    name            TEXT,
+    description     TEXT       CHECK(LENGTH(description) > 10)
 };
 
-DEFINE TIME(max_minute:int = 1000) {
-    minute          INT(32),
-    second          INT(8),
+STRUCT TIME(max_minute:int = 1000) {
+    minute          INT,
+    second          INT,
     CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
 }
 
-DEFINE NAME         TEXT(64);
+STRUCT NAME         TEXT;
 
 (* CONFIGS *)
 CONFIG Server: {
-    run             BOOLEAN DEFAULT 1
+    run             BOOLEAN DEFAULT 1,
     name            NAME,
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND), 
     alive_time      TIME,    
     server_spec     {
-        (* Anonymous DEFINE *)
-        server_owner    TEXT(64),
-        server_size     INT(12) CHECK(server_size > 100),
-    } OPTIONAL,
+        (* Anonymous STRUCT *)
+        server_owner    TEXT,
+        server_size     INT CHECK(server_size > 100)
+    } OPTIONAL
 };
 
 CONFIG Runner: {
-    flag            Server.run                      (* will not exposed to user, auto set *)
-    on_server       Server.name,                    (* will not exposed to user, auto set *)
-    runner_name     TEXT(64) OPTIONAL,
+    runner_name     TEXT OPTIONAL,
     commands        LIST(COMMAND),
-    nickname        LIST(TEXT(64)),
-    alive_time      TIME(500),            
+    nickname        LIST(TEXT),
+    alive_time      TIME(500),
+    protocol        TEXT CHECK( protocol IN ('tcp', 'udp', 'sctp', 'dccp') )
 };
 
 (* TRIGGER *)
@@ -70,6 +69,6 @@ TRIGGER ServerChangeAction WHEN CHANGE Server.commands {
 };
 
 (* SLICE *)
-SLICE Default       = {} 
-SLICE UserConfig    = (Runner - {'command'}) + {Server.name, Server.port, Server.description, Server.commands};
-SLICE DevConfig     = ALL
+SLICE Default       = {};
+SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
+SLICE DevConfig     = ALL;

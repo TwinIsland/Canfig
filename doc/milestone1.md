@@ -25,13 +25,14 @@ TRIGGER ServerChangeAction WHEN CHANGE Server {
 ```
 
 ## Target and Philosophy
-In the ARC (GitHub Action Runner Operator), many bugs stem from user errors, such as they don't know or misunderstand how to specified configuration. Canfig aims to prevent these issues by transforming documentation into code, thus simplifying usage. This philosophy underpins Canfig’s approach: it’s not just a traditional config language but one with a robust validation system designed to preemptively solve problems before they arise.
+In the ARC (GitHub Action Runner Operator), many bugs stem from user errors, such as they don't know or misunderstand how to specified configuration. Canfig aims to prevent these issues by transforming developer's documentation into code. This philosophy underpins Canfig’s approach: it’s not just a traditional config language but one with a robust validation system designed to preemptively solve problems before they arise.
 
 By translating documentation into executable validation rules, Canfig ensures configurations are correct from the start, reducing errors and improving user experience.
 
-Here's a clearer and more detailed explanation of how to implement Canfig, along with a guide on how to use it.
 
 ## Implementation Steps
+
+Here's a clearer and more detailed explanation of how to implement Canfig, along with a guide on how to use it.
 
 ### Preprocessing and Parsing
 1. **Macro Expansion**: Use `gcc -E` to preprocess any macros in the code, expanding them so that the parser can understand them without needing to interpret macros directly.
@@ -43,7 +44,7 @@ After parsing, manage each configuration and structure definition by storing the
 - **Basic Constraint and Type Checking**: SQLite supports enforcing data integrity through constraints, which can be effectively utilized to ensure the configurations meet the specified rules.
 
 ### Backend Service Setup
-1. **Fetch Config from SQLite**: Retrieve the current configuration settings stored in SQLite.
+1. **Fetch Config from SQLite**: Retrieve the current configuration data stored in SQLite.
 2. **Update Trigger Policy**: Adjust the triggers based on the current configurations and any new changes.
 3. **Start Backend with FastAPI**: Use FastAPI, a modern, fast web framework for building APIs with Python, to serve the backend services.
 4. **Materialize Slice and Start Router**: Materialize configurations into slices, similar to views in MySQL, and set up routing for each slice for efficient data handling and retrieval.
@@ -67,39 +68,7 @@ The Canfig language uses three main keywords to define and manage configurations
 
 - `CONFIG`: This keyword defines a configuration entry. Each `CONFIG` is an instance of a `STRUCT` or built-in type that specifies how a particular setting or feature should be configured.
 
-- `SLICE`: Similar to a view (`VIEW`) in SQL, this keyword allows the definition of slices using set operators. Slices are dynamic selections of data from one or more configurations that behave as virtual configurations. They are particularly useful for creating customized views or subsets of configurations based on specific criteria.
-
-By following these steps and utilizing the Canfig language keywords, developers can efficiently define, manage, and utilize complex configurations within their applications.
-
 ```python
-@version       "1.0.0";
-@min_sup       "0.1.0";
-@author        "erdao";
-@description   "this is an example CanfigDefine";
-@log           "./canfig.log";
-@doc           "./proto.md";
-@help          "
-        Welcome to use Sample CanfigDefine!
-        you need to specified slice to use
-        1. if you are user, please use UserConfig SLICE
-        2. if you are developer, use DevConfig SLICE
-";
-
-(* STRUCT *)
-STRUCT COMMAND {
-    name            TEXT,
-    description     TEXT       CHECK(LENGTH(description) > 10)
-};
-
-STRUCT TIME(max_minute:int = 1000) {
-    minute          INT,
-    second          INT,
-    CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
-};
-
-STRUCT NAME         TEXT;
-
-(* CONFIGS *)
 CONFIG Server: {
     run             BOOLEAN DEFAULT 1,
     name            NAME,
@@ -113,40 +82,29 @@ CONFIG Server: {
         server_size     INT CHECK(server_size > 100)
     } OPTIONAL
 };
+```
 
-CONFIG Runner: {
-    runner_name     TEXT OPTIONAL,
-    commands        LIST(COMMAND),
-    nickname        LIST(TEXT),
-    alive_time      TIME(500),
-    protocol        TEXT CHECK( protocol IN ('tcp', 'udp', 'sctp', 'dccp') )
-};
+- `SLICE`: Similar to a view (`VIEW`) in SQL, this keyword allows the definition of slices using set operators. Slices are dynamic selections of data from one or more configurations that behave as virtual configurations. They are particularly useful for creating customized views or subsets of configurations based on specific criteria.
 
-(* TRIGGER *)
-TRIGGER ServerChangeAction WHEN CHANGE Server {
-    # python interpreter integration
-    if Server.run = 0:
-        Runner.flag = 0
+```python
+SLICE Default       = {};
+SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
+```
 
-    if err_msg := ASSERT_REGEX(target=Server.name, pattern="server-[a|b|c]"):
-        return CANFIG_ERR(msg=err_msg)
+- `TRIGGER`: similar to trigger for database, but use Python code to define trigger
 
-    if ASSERT_EQUAL(target=Server.port, dest=8000):
-        return CANFIG_WARN(msg="the server port use port 8000")
-};
-
+```python
 TRIGGER ServerChangeAction WHEN CHANGE Server.commands {
     # python interpreter integration
     if err_msg := ASSERT_UNQIUE(list=Server.commands, 
                                 getter=lambda obj: obj['name']):
         return CANFIG_ERR(msg=err_msg)
 };
-
-(* SLICE *)
-SLICE Default       = {};
-SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
-SLICE DevConfig     = ALL;
 ```
+> Complete sample can be find in: https://github.com/TwinIsland/Canfig/blob/main/sample.cand
+
+By following these steps and utilizing the Canfig language keywords, developers can efficiently define, manage, and utilize complex configurations within their applications.
+
 
 #### Step2: Import Defination to Canfig Service
 ```bash

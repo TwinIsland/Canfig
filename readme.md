@@ -1,20 +1,26 @@
 # Usage
 
-### Step1: write config 
-write the cofig in `proto.can` to meet your demand
-
-### Step2: compile your config  
-even though most of the bug can be detected by CanfigLSP, it is still recommended to run
-to check your config twice via running
+### Step0: import Canfig definition 
 ```bash
-canfig -c proto.can 
+canfig create <config_name> -f sample.cand 
 ```
-if no bug report, you are ready to go!
 
-### Step3: start CanfigAPI service
-Canfig use TCP to do IPC, and provide API for user to modified their config, to start the service, simply run:
+### Step1: Satrt Cafig Server 
 ```bash
-# host all '.can' config on specific port 
-canfig -s "./" <PORT>
+canfig serve <config_name> -p <port>
 ```
-A human-readable document will also be generated on `/document`
+
+### Step2: Edit the config
+Canfig provide two ways to edit the config
+
+**Local editor:**
+
+run `canfig edit <config_name> -s <slice_name>` will allow you to edit the slice using vim.
+
+
+**Web editor:**
+
+After the server running, you can edit the config in `<ip>:<port>/<config_name>/<slice>`
+
+
+

@@ -24,6 +24,8 @@ The Canfig language uses three main keywords to define and manage configurations
 
 - `CONFIG`: This keyword defines a configuration entry. Each `CONFIG` is an instance of a `STRUCT` or built-in type that specifies how a particular setting or feature should be configured.
 
+> nested config structure will be implemented in the future
+
 ```
 CONFIG Server: {
     run             BOOLEAN DEFAULT 1,
@@ -31,12 +33,7 @@ CONFIG Server: {
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND), 
-    alive_time      TIME,    
-    server_spec     {
-        (* Anonymous STRUCT *)
-        server_owner    TEXT,
-        server_size     INT CHECK(server_size > 100)
-    } OPTIONAL
+    alive_time      TIME
 };
 ```
 

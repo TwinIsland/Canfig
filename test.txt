@@ -32,7 +32,7 @@ TRIGGER ServerChangeAction WHEN CHANGE Server {
         return CANFIG_WARN(msg=\"the server port use port 8000\")
 };
 
-SLICE Default       = <>;
-SLICE UserConfig    = (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>;
+SLICE Default       = {};
+SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
 SLICE DevConfig     = ALL;
 ";;

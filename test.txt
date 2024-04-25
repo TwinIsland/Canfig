@@ -1,1 +1,38 @@
-get_all_tokens "@version ";;
+get_all_tokens "
+@version \"asdasda\";
+@author \"adsad\";
+
+(* this is comment (* this is nested comment  *) *)
+
+STRUCT COMMAND {
+    name            TEXT,
+    description     TEXT       CHECK(LENGTH(description) > 10)
+};
+
+STRUCT TIME(max_minute:int = 1000) {
+    minute          INT,
+    second          INT,
+    CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
+
+    (* asdads  *)
+};
+
+STRUCT NAME         TEXT;
+
+(* TRIGGER *)
+TRIGGER ServerChangeAction WHEN CHANGE Server {
+    # python interpreter integration
+    if Server.run = 0:
+        Runner.flag = 0
+
+    if err_msg := ASSERT_REGEX(target=Server.name, pattern=\"server-[a|b|c]\"):
+        return CANFIG_ERR(msg=err_msg)
+
+    if ASSERT_EQUAL(target=Server.port, dest=8000):
+        return CANFIG_WARN(msg=\"the server port use port 8000\")
+};
+
+SLICE Default       = <>;
+SLICE UserConfig    = (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>;
+SLICE DevConfig     = ALL;
+";;

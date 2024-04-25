@@ -1,6 +1,6 @@
 # Canfig
 
-New generation configuration style
+New generation configuration language
 
 ### For Developers
 

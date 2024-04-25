@@ -21,7 +21,7 @@ STRUCT TIME(max_minute:int = 1000) {
     minute          INT,
     second          INT,
     CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
-}
+};
 
 STRUCT NAME         TEXT;
 
@@ -32,12 +32,7 @@ CONFIG Server: {
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND), 
-    alive_time      TIME,    
-    server_spec     {
-        (* Anonymous STRUCT *)
-        server_owner    TEXT,
-        server_size     INT CHECK(server_size > 100)
-    } OPTIONAL
+    alive_time      TIME
 };
 
 CONFIG Runner: {

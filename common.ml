@@ -9,6 +9,20 @@ type token =
   | DOC
   | HELP
   | SEMI
+  
   | STRING of string
-  | IDENTIFIER of string
+  | IDENT of string
+  
+  | LCBRACE
+  | RCBRACE
+  | STRUCT
+  | SLICE
+  | TRIGGER
+  | TRICOND
+  | PYARG
+  | LPAREN
+  | RPAREN
+  | CONFIG 
+  | COMMAND of string 
+  | ARGUMENT of string
   | EOF

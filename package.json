@@ -1,0 +1,39 @@
+{
+  "name": "canfig",
+  "displayName": "canfig",
+  "description": "canfig no.1",
+  "version": "0.0.1",
+  "icon": "icons/canfig.png",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "canfig",
+        "aliases": [
+          "Canfig",
+          "canfig"
+        ],
+        "extensions": [
+          ".cand"
+        ],
+        "icon": {
+          "light": "./icons/canfig.png",
+          "dark": "./icons/canfig.png"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "canfig",
+        "scopeName": "source.cand",
+        "path": "./syntaxes/canfig.tmLanguage.json"
+      }
+    ]
+  }
+}

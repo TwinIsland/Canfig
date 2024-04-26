@@ -1,0 +1,81 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Canfig",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#comments"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.canfig",
+					"match": "\\b(if|while|for|return)\\b"
+				},
+				{
+					"name": "keyword.other.canfig",
+					"match": "\\b(STRUCT|CONFIG|TRIGGER|SLICE)\\b"
+				},
+				{
+					"name": "keyword.control.canfig",
+					"match": "\\b(WHEN|CHANGE)\\b"
+				},
+				{
+					"name": "meta.annotation.canfig",
+					"begin": "(\\@[a-zA-Z_]+)\\s*",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.annotation.canfig"
+						}
+					},
+					"end": "(?<=;)",
+					"patterns": [
+						{
+							"include": "#string"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.canfig",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.canfig",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.block.canfig",
+					"begin": "\\(\\*",
+					"end": "\\*\\)",
+					"patterns": []
+				},
+				{
+					"name": "comment.line.number-sign.canfig",
+					"begin": "#",
+					"end": "$",
+					"patterns": []
+				}
+			]
+		}
+		
+	},
+	"fileTypes": [".cand"],
+	"scopeName": "source.cand"
+}

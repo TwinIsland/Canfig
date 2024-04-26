@@ -64,6 +64,6 @@ TRIGGER ServerChangeAction WHEN CHANGE Server.commands {
 };
 
 (* SLICE *)
-SLICE Default       = {};
-SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
+SLICE Default       = <>;
+SLICE UserConfig    = (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>;
 SLICE DevConfig     = ALL;

@@ -26,7 +26,7 @@ STRUCT TIME(max_minute:int = 1000) {
 STRUCT NAME         TEXT;
 
 (* CONFIGS *)
-CONFIG Server: {
+CONFIG Server {
     run             BOOLEAN DEFAULT 1,
     name            NAME,
     port            INT,
@@ -35,7 +35,7 @@ CONFIG Server: {
     alive_time      TIME
 };
 
-CONFIG Runner: {
+CONFIG Runner {
     runner_name     TEXT OPTIONAL,
     commands        LIST(COMMAND),
     nickname        LIST(TEXT),

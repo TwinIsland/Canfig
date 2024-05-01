@@ -1,6 +1,7 @@
 {
 open Common;;
 
+exception EndInput;;
 }
 
 let numeric = ['0' - '9']
@@ -100,4 +101,3 @@ let try_get_all_tokens s =
     with Failure "unmatched open comment" -> (None, true)
        | Failure "unmatched closed comment" -> (None, false)
  }
-

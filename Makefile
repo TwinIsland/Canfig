@@ -1,15 +1,17 @@
 OCAMLC=ocamlc
 OCAMLLEX=ocamllex
+OCAMLYACC=ocamlyacc
 
 .PHONY: all clean
 
-all: common.cmo tokens.ml
+all: common.cmo ast.ml
 
 common.cmo: common.ml
 	$(OCAMLC) -c common.ml -o common.cmo
 
-tokens.ml: token.mll
-	$(OCAMLLEX) token.mll
+ast.ml: ast.mll
+	$(OCAMLLEX) ast.mll
+
 
 clean:
-	rm -rf common.cmi tokens.ml
+	rm -rf common.cmi ast.ml

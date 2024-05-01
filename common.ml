@@ -26,3 +26,12 @@ type token =
   | COMMAND of string 
   | ARGUMENT of string
   | EOF
+
+
+type expr = 
+  | TagExp of token * string
+  | StrExp of token * token * token
+  | CfgExp of token * token * token
+  | TriExp of token * token * token
+  | SliExp of token * token * token
+

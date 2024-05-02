@@ -347,3 +347,5 @@ $RECYCLE.BIN/
 
 token.ml 
 test.txt
+ast
+a.out

@@ -4,14 +4,17 @@ OCAMLYACC=ocamlyacc
 
 .PHONY: all clean
 
-all: common.cmo ast.ml
+all: common.cmi ast.ml
 
-common.cmo: common.ml
-	$(OCAMLC) -c common.ml -o common.cmo
+exe: all
+	$(OCAMLC) ast.ml
+
+common.cmi: common.ml
+	$(OCAMLC) -c common.ml
 
 ast.ml: ast.mll
 	$(OCAMLLEX) ast.mll
 
 
 clean:
-	rm -rf common.cmi ast.ml
+	rm -rf common.cmi ast.ml ast.cmi ast

@@ -47,7 +47,7 @@ SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, 
 - `TRIGGER`: similar to trigger for database, but use Python code to define trigger
 
 ```
-TRIGGER ServerChangeAction WHEN CHANGE Server.commands {
+TRIGGER ServerChangeAction WHEN CHANGE Server {
     # python interpreter integration
     if err_msg := ASSERT_UNQIUE(list=Server.commands, 
                                 getter=lambda obj: obj['name']):

@@ -1,50 +1,29 @@
-@version       "1.0.0";
-@min_sup       "0.1.0";
-@author        "erdao";
-@description   "this is an example CanfigDefine";
-@log           "./canfig.log";
-@doc           "./proto.md";
-@help          "
-        Welcome to use Sample CanfigDefine! \
-        you need to specified slice to use  \
-        1. if you are user, please use UserConfig SLICE \
-        2. if you are developer, use DevConfig SLICE    \
-";
-
-(* STRUCT *)
-STRUCT COMMAND {
+VERSION STRING(1.0.0) SEMI MIN_SUP STRING(0.1.0) SEMI AUTHOR STRING(erdao) SEMI DESCRIPTION STRING(this is an example CanfigDefine) SEMI LOG STRING(./canfig.log) SEMI DOC STRING(./proto.md) SEMI HELP STRING(
+        Welcome to use Sample CanfigDefine! 
+        you need to specified slice to use  
+        1. if you are user, please use UserConfig SLICE 
+        2. if you are developer, use DevConfig SLICE    
+) SEMI STRUCT IDENT(COMMAND) COMMAND(
     name            TEXT,
     description     TEXT       CHECK(LENGTH(description) > 10)
-};
-
-STRUCT TIME(max_minute:int = 1000) {
+) SEMI STRUCT IDENT(TIME) ARGUMENT(max_minute:int = 1000) COMMAND(
     minute          INT,
     second          INT,
     CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
-};
-
-STRUCT NAME         TEXT;
-
-(* CONFIGS *)
-CONFIG Server {
+) SEMI STRUCT IDENT(NAME) IDENT(TEXT) SEMI CONFIG IDENT(Server) COMMAND(
     run             BOOLEAN DEFAULT 1,
     name            NAME,
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND),
     alive_time      TIME
-};
-
-CONFIG Runner {
+) SEMI CONFIG IDENT(Runner) COMMAND(
     runner_name     TEXT OPTIONAL,
     commands        LIST(COMMAND),
     nickname        LIST(TEXT),
     alive_time      TIME(500),
     protocol        TEXT CHECK( protocol IN ('tcp', 'udp', 'sctp', 'dccp') )
-};
-
-(* TRIGGER *)
-TRIGGER ServerChangeAction WHEN CHANGE Server {
+) SEMI TRIGGER IDENT(ServerChangeAction) TRICOND IDENT(Server) COMMAND(
     # python interpreter integration
     if Server.run = 0:
         Runner.flag = 0
@@ -58,9 +37,4 @@ TRIGGER ServerChangeAction WHEN CHANGE Server {
     if err_msg := ASSERT_UNQIUE(list=Server.commands,
                                 getter=lambda obj: obj['name']):
         return CANFIG_ERR(msg=err_msg)
-};
-
-(* SLICE *)
-SLICE Default       = <>;
-SLICE UserConfig    = (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>;
-SLICE DevConfig     = ALL;
+) SEMI SLICE IDENT(Default) COMMAND( <>) SLICE IDENT(UserConfig) COMMAND( (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>) SLICE IDENT(DevConfig) COMMAND( ALL)

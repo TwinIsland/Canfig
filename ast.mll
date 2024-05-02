@@ -1,7 +1,6 @@
 {
 open Common;;
 
-exception EndInput;;
 }
 
 let numeric = ['0' - '9']
@@ -74,19 +73,21 @@ and block_comment_match = parse
    | _ { block_comment_match lexbuf }
 
 
-and string_match = parse 
-   | "\\\\" { "\\" ^  string_match lexbuf }
-   | "\\'" { "\'" ^  string_match lexbuf }
-   | "\\\"" { "\"" ^  string_match lexbuf }
-   | "\\t" { "\t" ^  string_match lexbuf }
-   | "\\n" { "\n" ^  string_match lexbuf }
-   | "\\r" { "\r" ^  string_match lexbuf }
-   | "\\b" { "\b" ^  string_match lexbuf }
-   | "\\ " { " " ^  string_match lexbuf }
+and string_match = parse
+   | "\\\\" { "\\" ^ string_match lexbuf }
+   | "\\'" { "\'" ^ string_match lexbuf }
+   | "\\\"" { "\"" ^ string_match lexbuf }
+   | "\\t" { "\t" ^ string_match lexbuf }
+   | "\\n" { "\n" ^ string_match lexbuf }
+   | "\\r" { "\r" ^ string_match lexbuf }
+   | "\\b" { "\b" ^ string_match lexbuf }
+   | "\\ " { " " ^ string_match lexbuf }
+   | "\\" ['0'-'9']['0'-'9']['0'-'9'] as v {
+       (String.make 1 (char_of_int (int_of_string ("0o"^v)))) ^ string_match lexbuf }
+   | "\\" ('\n' | '\r') [' ' '\t']* { string_match lexbuf }
    | "\"" { "" }
-   | "\\" (['0' - '9']['0' - '9']['0' - '9'] as v) { (String.make 1 (char_of_int (int_of_string v))) ^  string_match lexbuf }
-   | [' ' '!' '#'-'~'] as s { (String.make 1 s) ^  string_match lexbuf }
-   | "\\\n" [' ' '\t']* {  string_match lexbuf }
+   | _ as c { (String.make 1 c) ^ string_match lexbuf }
+
 
 {
 let get_all_tokens s =
@@ -100,4 +101,57 @@ let try_get_all_tokens s =
     try (Some (get_all_tokens s), true)
     with Failure "unmatched open comment" -> (None, true)
        | Failure "unmatched closed comment" -> (None, false)
- }
+
+let string_of_token = function
+    | VERSION -> "VERSION"
+    | MIN_SUP -> "MIN_SUP"
+    | AUTHOR -> "AUTHOR"
+    | DESCRIPTION -> "DESCRIPTION"
+    | LOG -> "LOG"
+    | DOC -> "DOC"
+    | HELP -> "HELP"
+    | SEMI -> "SEMI"
+    | STRING s -> Printf.sprintf "STRING(%s)" s
+    | IDENT s -> Printf.sprintf "IDENT(%s)" s
+    | LCBRACE -> "LCBRACE"
+    | RCBRACE -> "RCBRACE"
+    | STRUCT -> "STRUCT"
+    | SLICE -> "SLICE"
+    | TRIGGER -> "TRIGGER"
+    | TRICOND -> "TRICOND"
+    | PYARG -> "PYARG"
+    | LPAREN -> "LPAREN"
+    | RPAREN -> "RPAREN"
+    | CONFIG -> "CONFIG"
+    | COMMAND s -> Printf.sprintf "COMMAND(%s)" s
+    | ARGUMENT s -> Printf.sprintf "ARGUMENT(%s)" s
+    | EOF -> "EOF"
+
+
+(* Main function to process files *)
+let () =
+    let args = Sys.argv in
+    if Array.length args < 4 then
+        Printf.eprintf "Usage: %s <input_file> -o <output_file>\n" args.(0)
+    else
+        let input_file = args.(1) in
+        let output_file = args.(3) in
+        if args.(2) <> "-o" then
+            Printf.eprintf "Invalid option: %s. Use -o for output file specification.\n" args.(2)
+        else
+            try
+                let ic = open_in input_file in
+                let input_content = really_input_string ic (in_channel_length ic) in
+                close_in ic;
+                match try_get_all_tokens input_content with
+                | (Some tokens, _) ->
+                    let output_content = String.concat " " (List.map string_of_token tokens) in
+                    let oc = open_out (output_file ^ ".cando") in
+                    output_string oc output_content;
+                    close_out oc
+                | (None, _) ->
+                    Printf.eprintf "Error processing tokens from input file.\n"
+            with
+            | Sys_error s -> Printf.eprintf "Error: %s\n" s
+
+}

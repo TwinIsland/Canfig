@@ -11,6 +11,7 @@ import subprocess
 from typing import List
 import sqlite3
 import re
+import hashlib
 
 from common import Token, TokenType, TagTokenType
 

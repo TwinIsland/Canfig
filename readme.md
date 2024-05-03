@@ -11,6 +11,7 @@ Canfig is a robust configuration language designed for developers who need preci
 #### **Step 1: Create Canfig Definition File (.cand)**
 
 Start by defining your configuration schema in a `.cand` file. For the syntax and rules, refer to the [Grammar Documentation](./doc/grammar.md).
+I also develop a simple syntax highlight plugin for Vscode: [canfig-0.0.1.vsix](./extension/canfig-0.0.1.vsix)
 
 #### **Step 2: Compile the Definition**
 

@@ -44,6 +44,6 @@ TRIGGER ServerChangeAction WHEN CHANGE Server {
         return CANFIG_ERR(msg=err_msg)
 };
 ```
-> Complete sample can be find in: [sample.cand](./sample.cand)
+> Complete sample can be find in: [sample.cand](../sample/sample.cand)
 
 By following these steps and utilizing the Canfig language keywords, developers can efficiently define, manage, and utilize complex configurations within their applications.

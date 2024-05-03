@@ -14,6 +14,7 @@ import pickle
 import hashlib
 
 from common import Token, TokenType, TagTokenType
+from utils import *
 
 from transitions import Machine
 from enum import Enum, auto
@@ -204,14 +205,6 @@ class Parser(object):
 
     def raise_err(self):
         raise Exception(f'parse error in state {self.state}! {self.err_msg}')
-
-
-def check_file_exists(filename):
-    return os.path.isfile(filename)
-
-
-def check_command_installed(command):
-    return subprocess.call(['which', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
 
 def lexing(from_file, to_file):

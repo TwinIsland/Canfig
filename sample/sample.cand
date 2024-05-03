@@ -17,7 +17,7 @@ STRUCT COMMAND {
     description     TEXT       CHECK(LENGTH(description) > 10)
 };
 
-STRUCT TIME(max_minute:int = 1000) {
+STRUCT TIME_S(max_minute:int = 1000) {
     minute          INT,
     second          INT,
     CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
@@ -32,14 +32,15 @@ CONFIG Server {
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND),
-    alive_time      TIME
+    alive_in        LIST(TIME_S(5)),
+    alive_time      TIME_S
 };
 
 CONFIG Runner {
     runner_name     TEXT OPTIONAL,
     commands        LIST(COMMAND),
     nickname        LIST(TEXT),
-    alive_time      TIME(500),
+    alive_time      TIME_S(500),
     protocol        TEXT CHECK( protocol IN ('tcp', 'udp', 'sctp', 'dccp') )
 };
 

@@ -9,17 +9,17 @@ import sys
 import os
 import subprocess
 from typing import List
-import sqlite3
 import re
+import pickle
 import hashlib
-
 
 from common import Token, TokenType, TagTokenType
 
 from transitions import Machine
 from enum import Enum, auto
 
-USE_DB = 'canfig.sqlite3'
+BUF_SIZE = 65536  # file read buf
+md5 = hashlib.md5()
 
 # parse result
 meta_data: dict = {}
@@ -206,24 +206,6 @@ class Parser(object):
         raise Exception(f'parse error in state {self.state}! {self.err_msg}')
 
 
-class DB:
-    def __init__(self, db_dir):
-        self.connection = sqlite3.connect(db_dir)
-        self.cursor = self.connection.cursor()
-
-    def execute(self, sql_command, args=None):
-        if args:
-            self.cursor.execute(sql_command, args)
-        else:
-            self.cursor.execute(sql_command)
-
-    def commit(self):
-        self.connection.commit()
-
-    def rollback(self):
-        self.connection.rollback()
-
-
 def check_file_exists(filename):
     return os.path.isfile(filename)
 
@@ -273,12 +255,28 @@ if __name__ == '__main__':
     if not check_file_exists(input_file := sys.argv[1]):
         raise FileNotFoundError(f"'{input_file}' no found.")
 
+    with open(input_file, 'rb') as f:
+        while True:
+            data = f.read(BUF_SIZE)
+            if not data:
+                break
+            md5.update(data)
+
+    # try to load candy
+    if check_file_exists(cplan_file := input_file.split('.')[0] + '.candy'):
+        with open(cplan_file, 'rb') as f:
+            cdata = pickle.load(f)
+
+        if md5.hexdigest() == cdata['md5']:
+            print(f"find fresh candy '{cplan_file}'! No need to compile")
+            exit(0)
+        else:
+            print(f"candy '{cplan_file}' find but out of date, recompile...")
+
     # lexing
     lexing(input_file, input_file.split('.')[0])
-    tokens = tokenize(input_file.split('.')[0] + '.cando')
-
-    if check_file_exists(USE_DB):
-        subprocess.run(['touch', USE_DB])
+    tokens = tokenize(cando_file := input_file.split('.')[0] + '.cando')
+    subprocess.run(['rm', cando_file])
 
     # parsing
     parser = Parser()
@@ -292,5 +290,13 @@ if __name__ == '__main__':
     print(
         f"meta data: {len(meta_data)}, struct/config: {len(sql_query)}, trigger: {len(triggers)}, slice: {len(slices)}")
 
-    db = DB(db_dir=USE_DB)
-    print(f"connect to db '{USE_DB}'")
+    with open(cplan_file, 'wb') as f:
+        pickle.dump({
+            'md5': md5.hexdigest(),
+            'meta_data': meta_data,
+            'sql_query': sql_query,
+            'triggers': triggers,
+            'slices': slices
+        }, file=f)
+
+    print(f"dump '{input_file}' to plan '{cplan_file}'")

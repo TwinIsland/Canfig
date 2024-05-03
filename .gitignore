@@ -351,5 +351,5 @@ ast
 a.out
 *.sqlite3
 ast.ml
-sample.cando
-
+*.cando
+*.candy

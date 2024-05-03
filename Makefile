@@ -7,7 +7,7 @@ OCAMLYACC=ocamlyacc
 all: common.cmi ast.ml
 
 exe: all
-	$(OCAMLC) ast.ml
+	$(OCAMLC) ast.ml -o ast
 
 common.cmi: common.ml
 	$(OCAMLC) -c common.ml

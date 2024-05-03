@@ -1,29 +1,29 @@
-VERSION STRING(1.0.0) SEMI MIN_SUP STRING(0.1.0) SEMI AUTHOR STRING(erdao) SEMI DESCRIPTION STRING(this is an example CanfigDefine) SEMI LOG STRING(./canfig.log) SEMI DOC STRING(./proto.md) SEMI HELP STRING(
+VERSION[_!]STRING(1.0.0)[_!]SEMI[_!]MIN_SUP[_!]STRING(0.1.0)[_!]SEMI[_!]AUTHOR[_!]STRING(erdao)[_!]SEMI[_!]DESCRIPTION[_!]STRING(this is an example CanfigDefine)[_!]SEMI[_!]LOG[_!]STRING(./canfig.log)[_!]SEMI[_!]DOC[_!]STRING(./proto.md)[_!]SEMI[_!]HELP[_!]STRING(
         Welcome to use Sample CanfigDefine! 
         you need to specified slice to use  
         1. if you are user, please use UserConfig SLICE 
         2. if you are developer, use DevConfig SLICE    
-) SEMI STRUCT IDENT(COMMAND) COMMAND(
+)[_!]SEMI[_!]STRUCT[_!]IDENT(COMMAND)[_!]COMMAND(
     name            TEXT,
     description     TEXT       CHECK(LENGTH(description) > 10)
-) SEMI STRUCT IDENT(TIME) ARGUMENT(max_minute:int = 1000) COMMAND(
+)[_!]SEMI[_!]STRUCT[_!]IDENT(TIME)[_!]ARGUMENT(max_minute:int = 1000)[_!]COMMAND(
     minute          INT,
     second          INT,
     CONSTRAINT CHK_Time CHECK (second>=18 AND minute<max_minute)
-) SEMI STRUCT IDENT(NAME) IDENT(TEXT) SEMI CONFIG IDENT(Server) COMMAND(
+)[_!]SEMI[_!]STRUCT[_!]IDENT(NAME)[_!]IDENT(TEXT)[_!]SEMI[_!]CONFIG[_!]IDENT(Server)[_!]COMMAND(
     run             BOOLEAN DEFAULT 1,
     name            NAME,
     port            INT,
     description     TEXT    DEFAULT 'default description',
     commands        LIST(COMMAND),
     alive_time      TIME
-) SEMI CONFIG IDENT(Runner) COMMAND(
+)[_!]SEMI[_!]CONFIG[_!]IDENT(Runner)[_!]COMMAND(
     runner_name     TEXT OPTIONAL,
     commands        LIST(COMMAND),
     nickname        LIST(TEXT),
     alive_time      TIME(500),
     protocol        TEXT CHECK( protocol IN ('tcp', 'udp', 'sctp', 'dccp') )
-) SEMI TRIGGER IDENT(ServerChangeAction) TRICOND IDENT(Server) COMMAND(
+)[_!]SEMI[_!]TRIGGER[_!]IDENT(ServerChangeAction)[_!]TRICOND[_!]IDENT(Server)[_!]COMMAND(
     # python interpreter integration
     if Server.run = 0:
         Runner.flag = 0
@@ -37,4 +37,4 @@ VERSION STRING(1.0.0) SEMI MIN_SUP STRING(0.1.0) SEMI AUTHOR STRING(erdao) SEMI 
     if err_msg := ASSERT_UNQIUE(list=Server.commands,
                                 getter=lambda obj: obj['name']):
         return CANFIG_ERR(msg=err_msg)
-) SEMI SLICE IDENT(Default) COMMAND( <>) SLICE IDENT(UserConfig) COMMAND( (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description>) SLICE IDENT(DevConfig) COMMAND( ALL)
+)[_!]SEMI[_!]SLICE[_!]IDENT(Default)[_!]COMMAND( <)[_!]SEMI[_!]SLICE[_!]IDENT(UserConfig)[_!]COMMAND( (Runner - <Runner.commands>) + <Server.name, Server.port, Server.description)[_!]SEMI[_!]SLICE[_!]IDENT(DevConfig)[_!]COMMAND( AL)[_!]SEMI

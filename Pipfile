@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 fastapi = "*"
 pydantic = "*"
+sqlalchemy = "*"
+transitions = "*"
 
 [dev-packages]
 

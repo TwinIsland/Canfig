@@ -1,6 +1,5 @@
 {
 open Common;;
-
 }
 
 let numeric = ['0' - '9']
@@ -38,9 +37,16 @@ rule token = parse
    | "*)" { raise (Failure "unmatched closed comment") }
    | "//" { block_comment_match lexbuf }
 
-and equal_match = parse 
-   | ";" { "" }
-   | _ as c  { Printf.sprintf "%c%s" c (equal_match lexbuf) }
+and equal_match = parse
+  | _ as c  {
+        let next_char = Lexing.lexeme_char lexbuf 1 in
+        if next_char = ';'
+        then
+            ""
+        else
+            Printf.sprintf "%c%s" c (equal_match lexbuf)
+    }
+
 
 and argument_match = parse 
    | ")" { "" }
@@ -145,7 +151,7 @@ let () =
                 close_in ic;
                 match try_get_all_tokens input_content with
                 | (Some tokens, _) ->
-                    let output_content = String.concat " " (List.map string_of_token tokens) in
+                    let output_content = String.concat "[_!]" (List.map string_of_token tokens) in
                     let oc = open_out (output_file ^ ".cando") in
                     output_string oc output_content;
                     close_out oc

@@ -6,7 +6,7 @@ Canfig is a robust configuration language designed for developers who need preci
 
 ## 🛠️ For Developers
 
-### 📋 Write Configuration
+### 📋 Define Configuration
 
 #### **Step 1: Create Canfig Definition File (.cand)**
 

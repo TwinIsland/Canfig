@@ -1,24 +1,44 @@
-# Canfig
+# Canfig: Strongly Validated Configuration Language
 
-New generation configuration language
+Canfig is a robust configuration language designed for developers who need precise control and validation of their application settings. The language supports a structured approach to defining, compiling, and deploying configuration settings, making it ideal for both development and production environments.
 
-## For Developers
+> **WARNING: This version supports UNIX systems only. Windows users should use WSL.**
 
-#### Step 0: Start Canfig Service
-```bash
-./canfig -p <port>
+## 🛠️ For Developers
+
+### 📋 Write Configuration
+
+#### **Step 1: Create Canfig Definition File (.cand)**
+
+Start by defining your configuration schema in a `.cand` file. For the syntax and rules, refer to the [Grammar Documentation](./doc/grammar.md).
+
+#### **Step 2: Compile the Definition**
+
+Compile your `.cand` file into a `.candy` executable configuration using our Python-based compiler:
+
+```shell
+python3 compiler.py sample.cand
 ```
 
-#### Step 1: Create Canfig Definition
-see [grammar.md](./doc/grammar.md)
+#### **Step 3: Import Candy into Canfig Service**
 
-#### Step2: Import Defination to Canfig Service
-```bash
-canfig create <config_name> -f sample_defination.cand 
+Load your compiled configuration into the Canfig service:
+
+```shell
+canfig create my_config from sample.candy
 ```
 
-#### Step3: Fetch data
-For Python integration, the data can be fetch via CanfigAPI
+#### **Step 4: Start Canfig Server**
+
+Launch the Canfig server to make your configuration active:
+
+```shell
+canfig start
+```
+
+### 🥳 Use Configuration
+
+To integrate your Canfig into a Python application, use the Canfig API to fetch configuration data:
 
 ```python
 from canfig import Canfig
@@ -31,7 +51,6 @@ config = Canfig(
 server_port = config['server']['port']
 ```
 
+## 🌐 For Users:
 
-## For User:
-
-Edit config in `<ip>:<port>/<config_name>/<slice_name>`
+Modify and verify your configuration settings by visiting the web interface at `<ip>:<port>/<config_name>/<slice_name>`. This user-friendly interface allows for easy edits and real-time validation of configurations.

@@ -353,3 +353,6 @@ a.out
 ast.ml
 *.cando
 *.candy
+
+Pipfile
+Pipfile.lock

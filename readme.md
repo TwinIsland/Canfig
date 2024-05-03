@@ -2,7 +2,7 @@
 
 Canfig is a robust configuration language designed for developers who need precise control and validation of their application settings. The language supports a structured approach to defining, compiling, and deploying configuration settings, making it ideal for both development and production environments.
 
-> **WARNING: This version supports UNIX systems only. Windows users should use WSL.**
+> **WARNING: This version supports UNIX-based systems only. Windows users should use WSL.**
 
 ## 🛠️ For Developers
 

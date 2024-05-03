@@ -13,6 +13,7 @@ import sqlite3
 import re
 import hashlib
 
+
 from common import Token, TokenType, TagTokenType
 
 from transitions import Machine

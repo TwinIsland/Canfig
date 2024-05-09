@@ -4,7 +4,7 @@ import subprocess
 import sys
 import re
 
-from typing import Callable, Optional
+from typing import Dict, Optional
 from enum import Enum, auto
 
 from pprint import pprint
@@ -79,65 +79,72 @@ def CREATE_CONFIG_INIT_plan(tname: str):
     return f"INSERT INTO {tname} DEFAULT VALUES"
 
 
-def pre_sql_get_args(pre_sql, patterns: set):
+def pre_sql_get_args(pre_sql, patterns: set, neg=False):
     ret = []
-    for pattern in patterns:
-        regex = rf"(\w+)\s+{pattern}\s*(\(.*?\))?\s*,?"
+    lines = pre_sql.strip().split('\n')
+    regex = r"(\w+)\s+(\w+)(\s*\([^)]*\))?\s*"
 
-        matches = re.findall(regex, pre_sql)
-        ret += [(match[0], pattern) for match in matches]
-    return ret
-
-
-def pre_sql_replace(pre_sql, patterns: list, post_arg_func: Callable):
-    for pattern in patterns:
-        regex = rf"{pattern}\(.*?\)|{pattern}"
-
-        def replacement(match):
-            if '(' in match.group(0):
-                return post_arg_func(match.group(0).split('(')[1].strip(')'))
+    for line in lines:
+        match = re.search(regex, line.strip())
+        if match:
+            name, type_name, args = match.groups()
+            if args:
+                full_type = f"{type_name}{args.strip()}"
             else:
-                return post_arg_func()
+                full_type = type_name
 
-        pre_sql = re.sub(regex, replacement, pre_sql)
-    return pre_sql
+            if (type_name in patterns) != neg:
+                ret.append((name, full_type))
+
+    return ret
 
 
 class Plan:
     __plans = []
     __taps = []
-    __flag = False
+    __init_flag = False
 
-    __LR_state = -1
+    __LR_state = "LR_VAL"
+
+    __plan_callback = None
+    __build_flag = False
 
     class Operation(Enum):
         EXE_BUF = auto()  # execute plan buffer
         UP_LR_STATE = auto()  # update last row state
         NXT_BUF = auto()  # next plan buffer
 
-    def __init__(self, db: DB):
-        self.__db = db
+    def __init__(self):
+        pass
 
-    def init_std_plan(self, table_name: str, config_name: str, value: str):
-        assert self.__flag, "plan already initialized."
+    def __init_std_plan(self, table_name: str, config_name: str, value: dict):
+        """
+
+        :param table_name: origin table name
+        :param config_name: config name
+        :param value: { 'data': "str" }
+        :return: void
+        """
+        assert not self.__init_flag, "plan already initialized."
 
         self.__plans.append(
             f'''
-            UPDATE {table_name} SET {config_name} = {value}
+            UPDATE {table_name} SET {config_name} = {"'" + value['data'] + "'" if isinstance(value['data'], str) else value['data']}
             WHERE {table_name}_id = 1;
             '''
         )
         self.__taps.append(self.Operation.EXE_BUF)
+        self.__init_flag = True
 
-    def init_ext_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
-        assert self.__flag, "plan already initialized."
+    def __init_ext_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
+        assert not self.__init_flag, "plan already initialized."
 
-        values_f = [f"'{value}'" if isinstance(value, str) else value for value in values.values()]
+        values_f = [f"'{value}'" if isinstance(value, str) else str(value) for value in values.values()]
 
         self.__plans.append(
             f'''
             INSERT INTO {ext_table_name} ({",".join(values.keys())})
-            VALUES ({"".join(values_f)});
+            VALUES ({",".join(values_f)});
             '''
         )
         self.__taps.append(self.Operation.EXE_BUF)
@@ -150,9 +157,10 @@ class Plan:
             '''
         )
         self.__taps.append(self.Operation.EXE_BUF)
+        self.__init_flag = True
 
-    def init_list_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
-        assert self.__flag, "plan already initialized."
+    def __init_list_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
+        assert not self.__init_flag, "plan already initialized."
 
         values_f = [f"'{value}'" if isinstance(value, str) else value for value in values.values()]
 
@@ -168,27 +176,73 @@ class Plan:
 
         self.__plans.append(
             f'''
-            UPDATE {ext_table_name}_{table_name} SET 
-                {ext_table_name}_id = {self.__LR_state}
-            WHERE {table_name}_id = 1 
+            INSERT INTO {ext_table_name}_{table_name}  ({config_name})
+            VALUES ({self.__LR_state})
             '''
         )
 
         self.__taps.append(self.Operation.EXE_BUF)
+        self.__init_flag = True
 
-    def execute(self):
+    def init_std_plan(self, table_name: str, config_name: str):
+        def closure(values: dict):
+            return self.__init_std_plan(table_name, config_name, values)
+
+        self.__plan_callback = closure
+
+    def init_ext_plan(self, table_name: str, ext_table_name: str, config_name: str):
+        def closure(values: dict):
+            return self.__init_ext_plan(table_name, ext_table_name, config_name, values)
+
+        self.__plan_callback = closure
+
+    def init_list_plan(self, table_name: str, ext_table_name: str, config_name: str):
+        def closure(values: dict):
+            return self.__init_list_plan(table_name, ext_table_name, config_name, values)
+
+        self.__plan_callback = closure
+
+    def build(self, values: dict):
+        assert not self.__build_flag, "plan already built"
+        self.__plan_callback(values)
+        self.__build_flag = True
+
+    def execute(self, db: DB):
+        assert self.__build_flag, "build the plan before execute"
         plan_cursor = 0
 
         for tap in self.__taps:
             if tap == self.Operation.UP_LR_STATE:
-                self.__LR_state = self.__db.lastrowid
+                self.__LR_state = db.lastrowid
             elif tap == self.Operation.EXE_BUF:
-                self.__db.execute(self.__plans[plan_cursor])
+                db.execute(self.__plans[plan_cursor])
                 plan_cursor += 1
             else:
                 raise Exception("wrong plan operation")
 
         db.commit()
+
+    def __str__(self):
+        plan_cursor = 0
+        ret = f"Plan (total: {len(self.__taps)})\n"
+        ret += "-" * 10
+        if self.__build_flag:
+            for i, tap in enumerate(self.__taps):
+                ret += f"\nStep {i + 1}: \n"
+                if tap == self.Operation.UP_LR_STATE:
+                    self.__LR_state = db.lastrowid
+                    ret += "\nUPDATE LR_VAL\n"
+                elif tap == self.Operation.EXE_BUF:
+                    ret += self.__plans[plan_cursor]
+                    plan_cursor += 1
+                else:
+                    raise Exception("wrong plan operation")
+
+            ret += "\n"
+        else:
+            ret += "\nNOT BUILD YET\n"
+        ret += "-" * 10
+        return ret
 
 
 class PreSQL:
@@ -218,6 +272,16 @@ class PreSQL:
         return re.sub(r'\((\d+)\)', r'_\1', struct_name)
 
 
+def assign_plan(_final_plan, _plan, _for) -> Plan:
+    print(f"assign {_plan['name']}.{_for}")
+    if _plan['name'] not in _final_plan:
+        _final_plan[_plan['name']] = {}
+
+    assert _for not in _final_plan[_plan['name']], f"{_for} already init"
+    _final_plan[_plan['name']][_for] = Plan()
+    return _final_plan[_plan['name']][_for]
+
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <input_file>")
@@ -237,7 +301,7 @@ if __name__ == '__main__':
     struct_set: set = set()
 
     # struct that hold IO plan for each config
-    final_plan: dict = {}
+    final_plan: Dict[str, Dict[str, Plan]] = dict()
 
     # evaluate STRUCT
     for plan in cplan_data['sql_query']:
@@ -257,16 +321,21 @@ if __name__ == '__main__':
                 print(f"evaluate struct: {plan['name']}")
 
     # evaluate CONFIG
+    import time
+
     for plan in cplan_data['sql_query']:
         if plan['type'] == 'CONFIG':
             # print(plan['sql'])
+            print(f"\nevaluate config: {plan['name']}")
+
             m2m_plans = []
             m2m_tables = []
 
-            if ret := re.findall(r'LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)', plan['sql']):
+            if ret := re.findall(r'(\w+)\s+LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)', plan['sql']):
                 # Evaluate LIST, basically create many-to-many relation with the
                 # list argument.
-                for req_struct in ret:
+                for field_pair in ret:
+                    config_name, req_struct = field_pair
                     if req_struct not in struct_set:
                         # create missing struct
                         if not bool(re.fullmatch(r'\w+\([^()]*\)', req_struct)):
@@ -290,6 +359,14 @@ if __name__ == '__main__':
                     m2m_plans.append(CREATE_M2M_plan(tname_1=post_struct,
                                                      tname_2=plan['name']))
 
+                    plan_ptr = assign_plan(_final_plan=final_plan,
+                                           _plan=plan,
+                                           _for=config_name)
+
+                    plan_ptr.init_list_plan(table_name=plan['name'],
+                                            ext_table_name=post_struct,
+                                            config_name=req_struct)
+
                     # should be consistent on how CREATE_M2M_plan create m2m table name
                     m2m_tables.append(f"{post_struct}_{plan['name']}")
                     struct_set.add(post_struct)
@@ -301,15 +378,32 @@ if __name__ == '__main__':
             struct_ref_fks = []
             struct_ref = pre_sql_get_args(plan['sql'], struct_set)
             for ref in struct_ref:
+                plan_ptr = assign_plan(final_plan, plan, ref[0])
+                plan_ptr.init_ext_plan(
+                    table_name=plan['name'],
+                    ext_table_name=PreSQL.format_struct_to_name(ref[1]),
+                    config_name=ref[0]
+                )
+
                 struct_ref_fks.append((ref[0], PreSQL.format_struct_to_name(ref[1])))
+
+            # print(plan['sql'])
+            # print(pre_sql_get_args(plan['sql'], struct_set))
+            # print(pre_sql_get_args(plan['sql'], struct_set, True))
+
+            for ref in pre_sql_get_args(plan['sql'], struct_set, True):
+                if ref[1] != 'NULL':
+                    plan_ptr = assign_plan(final_plan, plan, ref[0])
+                    plan_ptr.init_std_plan(
+                        table_name=plan['name'],
+                        config_name=ref[0]
+                    )
 
             # create db
             db_query = CREATE_TABLE_plan(table_name=plan['name'],
                                          sql=plan['sql'],
                                          FKs=struct_ref_fks)
-
             db.execute(db_query)
-            db.execute(CREATE_CONFIG_INIT_plan(plan['name']))
 
             # create m2m relation
             for p in m2m_plans:
@@ -321,4 +415,15 @@ if __name__ == '__main__':
 
             db.commit()
 
-            print(f"evaluate config: {plan['name']}")
+            print(f"finish evaluate config: {plan['name']}")
+
+    pprint(final_plan)
+    final_plan['Server']['alive_time'].build({
+        "minute": 27,
+        "second": 12
+    })
+    print(final_plan['Server']['alive_time'])
+
+    # with open(cplan_file, 'wb') as f:
+    #     pickle.dump(final_plan, f)
+    db.close()

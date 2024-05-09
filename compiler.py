@@ -257,14 +257,17 @@ if __name__ == '__main__':
 
     # try to load candy
     if check_file_exists(cplan_file := input_file.split('.')[0] + '.candy'):
-        with open(cplan_file, 'rb') as f:
-            cdata = pickle.load(f)
+        try:
+            with open(cplan_file, 'rb') as f:
+                cdata = pickle.load(f)
 
-        if md5.hexdigest() == cdata['md5']:
-            print(f"find fresh candy '{cplan_file}'! No need to compile")
-            exit(0)
-        else:
-            print(f"candy '{cplan_file}' find but out of date, recompile...")
+            if md5.hexdigest() == cdata['md5']:
+                print(f"find fresh candy '{cplan_file}'! No need to compile")
+                exit(0)
+            else:
+                print(f"candy '{cplan_file}' find but out of date, recompile...")
+        except Exception as e:
+            print(f"candy '{cplan_file}' find but fail to load: {str(e)}, recompile...")
 
     # lexing
     lexing(input_file, input_file.split('.')[0])

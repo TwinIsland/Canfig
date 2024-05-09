@@ -1,11 +1,13 @@
 import sqlite3
 import pickle
+import subprocess
 import sys
 import re
 
 from typing import Callable, Optional
+from enum import Enum, auto
 
-from utils import *
+from pprint import pprint
 
 DB_FILE = 'canfig.sqlite3'
 
@@ -16,6 +18,7 @@ class DB:
     def __init__(self, db_dir):
         self.connection = sqlite3.connect(db_dir)
         self.cursor = self.connection.cursor()
+        self.lastrowid = -1
 
     def execute(self, sql_command, args=None):
         if args:
@@ -25,6 +28,7 @@ class DB:
 
     def commit(self):
         self.connection.commit()
+        self.lastrowid = self.cursor.lastrowid
 
     def rollback(self):
         self.connection.rollback()
@@ -38,7 +42,7 @@ def CREATE_TABLE_plan(table_name: str, sql: str, FKs: Optional[list] = None):
 
     if FKs:
         for t1, t2 in FKs:
-            ext_cmd += f"FOREIGN KEY ({t1}_id) REFERENCES {t2}({t2}_id),\n"
+            ext_cmd += f"FOREIGN KEY ({t1}) REFERENCES {t2}({t2}_id),\n"
         ext_cmd = ext_cmd[:-2]
 
     return f'''
@@ -71,12 +75,17 @@ def CREATE_M2M_plan(tname_1: str, tname_2: str):
     '''
 
 
-def pre_sql_get_args(pre_sql, patterns: list):
+def CREATE_CONFIG_INIT_plan(tname: str):
+    return f"INSERT INTO {tname} DEFAULT VALUES"
+
+
+def pre_sql_get_args(pre_sql, patterns: set):
     ret = []
     for pattern in patterns:
-        regex = rf"{pattern}\(.*?\)|{pattern}"
+        regex = rf"(\w+)\s+{pattern}\s*(\(.*?\))?\s*,?"
 
-        ret += re.findall(regex, pre_sql)
+        matches = re.findall(regex, pre_sql)
+        ret += [(match[0], pattern) for match in matches]
     return ret
 
 
@@ -92,6 +101,94 @@ def pre_sql_replace(pre_sql, patterns: list, post_arg_func: Callable):
 
         pre_sql = re.sub(regex, replacement, pre_sql)
     return pre_sql
+
+
+class Plan:
+    __plans = []
+    __taps = []
+    __flag = False
+
+    __LR_state = -1
+
+    class Operation(Enum):
+        EXE_BUF = auto()  # execute plan buffer
+        UP_LR_STATE = auto()  # update last row state
+        NXT_BUF = auto()  # next plan buffer
+
+    def __init__(self, db: DB):
+        self.__db = db
+
+    def init_std_plan(self, table_name: str, config_name: str, value: str):
+        assert self.__flag, "plan already initialized."
+
+        self.__plans.append(
+            f'''
+            UPDATE {table_name} SET {config_name} = {value}
+            WHERE {table_name}_id = 1;
+            '''
+        )
+        self.__taps.append(self.Operation.EXE_BUF)
+
+    def init_ext_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
+        assert self.__flag, "plan already initialized."
+
+        values_f = [f"'{value}'" if isinstance(value, str) else value for value in values.values()]
+
+        self.__plans.append(
+            f'''
+            INSERT INTO {ext_table_name} ({",".join(values.keys())})
+            VALUES ({"".join(values_f)});
+            '''
+        )
+        self.__taps.append(self.Operation.EXE_BUF)
+        self.__taps.append(self.Operation.UP_LR_STATE)
+
+        self.__plans.append(
+            f'''
+            UPDATE {table_name} SET {config_name} = {self.__LR_state}
+            WHERE {table_name}_id = 1
+            '''
+        )
+        self.__taps.append(self.Operation.EXE_BUF)
+
+    def init_list_plan(self, table_name: str, ext_table_name: str, config_name: str, values: dict):
+        assert self.__flag, "plan already initialized."
+
+        values_f = [f"'{value}'" if isinstance(value, str) else value for value in values.values()]
+
+        self.__plans.append(
+            f'''
+            INSERT INTO {ext_table_name} ({",".join(values.keys())})
+            VALUES ({"".join(values_f)});
+            '''
+        )
+
+        self.__taps.append(self.Operation.EXE_BUF)
+        self.__taps.append(self.Operation.UP_LR_STATE)
+
+        self.__plans.append(
+            f'''
+            UPDATE {ext_table_name}_{table_name} SET 
+                {ext_table_name}_id = {self.__LR_state}
+            WHERE {table_name}_id = 1 
+            '''
+        )
+
+        self.__taps.append(self.Operation.EXE_BUF)
+
+    def execute(self):
+        plan_cursor = 0
+
+        for tap in self.__taps:
+            if tap == self.Operation.UP_LR_STATE:
+                self.__LR_state = self.__db.lastrowid
+            elif tap == self.Operation.EXE_BUF:
+                self.__db.execute(self.__plans[plan_cursor])
+                plan_cursor += 1
+            else:
+                raise Exception("wrong plan operation")
+
+        db.commit()
 
 
 class PreSQL:
@@ -113,7 +210,7 @@ class PreSQL:
 
         return self.__pre_sql \
             .replace(self.__arg_rule[0], str(arg)) \
-            .replace(self.__table_name, f"{self.__table_name}_{str(arg)}")
+            .replace(self.__table_name, self.format_struct_to_name(self.__table_name + f"({arg})"))
 
     @staticmethod
     def format_struct_to_name(struct_name):
@@ -131,11 +228,16 @@ if __name__ == '__main__':
     with open(cplan_file := sys.argv[1], 'rb') as f:
         cplan_data = pickle.load(f)
 
+    subprocess.run(['rm', DB_FILE])
+
     db = DB(DB_FILE)
     print("load db instance.")
 
     # structs that already been created
-    struct_list = []
+    struct_set: set = set()
+
+    # struct that hold IO plan for each config
+    final_plan: dict = {}
 
     # evaluate STRUCT
     for plan in cplan_data['sql_query']:
@@ -143,7 +245,7 @@ if __name__ == '__main__':
             if not plan['pre']:
                 db.execute(CREATE_TABLE_plan(table_name=plan['name'],
                                              sql=plan['sql']))
-                struct_list.append(plan['name'])
+                struct_set.add(plan['name'])
                 print(f"evaluate struct: {plan['name']}")
 
             elif 'arg' in plan:
@@ -151,7 +253,7 @@ if __name__ == '__main__':
                 pre_plan = PreSQL(table_name=f"{plan['name']}", pre_sql=plan['sql'], arg_rule=plan_rule)
                 plan['pre_plan'] = pre_plan
                 db.execute(pre_plan.make(None))
-                struct_list.append(plan['name'])
+                struct_set.add(plan['name'])
                 print(f"evaluate struct: {plan['name']}")
 
     # evaluate CONFIG
@@ -159,12 +261,13 @@ if __name__ == '__main__':
         if plan['type'] == 'CONFIG':
             # print(plan['sql'])
             m2m_plans = []
+            m2m_tables = []
 
             if ret := re.findall(r'LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)', plan['sql']):
                 # Evaluate LIST, basically create many-to-many relation with the
                 # list argument.
                 for req_struct in ret:
-                    if req_struct not in struct_list:
+                    if req_struct not in struct_set:
                         # create missing struct
                         if not bool(re.fullmatch(r'\w+\([^()]*\)', req_struct)):
                             # case 1: not pre-sql type, that is build-in-type
@@ -174,8 +277,8 @@ if __name__ == '__main__':
                         else:
                             # case 2: pre-sql type, need create PreSQL instance
                             pre_sql_struct = re.search(r'(\w+)\(', req_struct).groups()[0]
-                            assert pre_sql_struct in struct_list, f'Fail to build LIST({req_struct}) ' \
-                                                                  f'due to struct {req_struct} not exist'
+                            assert pre_sql_struct in struct_set, f'Fail to build LIST({req_struct}) ' \
+                                                                 f'due to struct {req_struct} not exist'
                             # db.execute(cplan_data['sql_query'])
                             for i in cplan_data['sql_query']:
                                 if i['name'] == pre_sql_struct:
@@ -183,32 +286,39 @@ if __name__ == '__main__':
                                     break
                             print(f"evaluate {req_struct}")
 
-                    # should be consistent to how PreSQL format the pre-sql struct
                     post_struct = PreSQL.format_struct_to_name(req_struct)
                     m2m_plans.append(CREATE_M2M_plan(tname_1=post_struct,
                                                      tname_2=plan['name']))
-                    struct_list.append(post_struct)
+
+                    # should be consistent on how CREATE_M2M_plan create m2m table name
+                    m2m_tables.append(f"{post_struct}_{plan['name']}")
+                    struct_set.add(post_struct)
 
                 # replace LIST to be NULL type
                 plan['sql'] = re.sub(r'LIST\(([^()]*(?:\([^()]*\)[^()]*)*)\)', 'NULL', plan['sql'])
 
             # Evaluate struct referencing
             struct_ref_fks = []
-            struct_ref = pre_sql_get_args(plan['sql'], struct_list)
+            struct_ref = pre_sql_get_args(plan['sql'], struct_set)
             for ref in struct_ref:
-                struct_ref_fks.append((plan['name'], PreSQL.format_struct_to_name(ref)))
+                struct_ref_fks.append((ref[0], PreSQL.format_struct_to_name(ref[1])))
 
             # create db
             db_query = CREATE_TABLE_plan(table_name=plan['name'],
                                          sql=plan['sql'],
                                          FKs=struct_ref_fks)
 
-            print(db_query)
-
             db.execute(db_query)
+            db.execute(CREATE_CONFIG_INIT_plan(plan['name']))
 
             # create m2m relation
             for p in m2m_plans:
                 db.execute(p)
+
+            # init m2m tables
+            for p in m2m_tables:
+                db.execute(CREATE_CONFIG_INIT_plan(p))
+
+            db.commit()
 
             print(f"evaluate config: {plan['name']}")

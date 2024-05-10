@@ -39,13 +39,17 @@ class TagTokenType(Enum):
 
 class Token:
     def __init__(self, type, value=None):
-        if type in [TokenType.STRING, TokenType.IDENT, TokenType.COMMAND, TokenType.ARGUMENT] and not isinstance(value,
-                                                                                                                 str):
+        if type in [
+            TokenType.STRING,
+            TokenType.IDENT,
+            TokenType.COMMAND,
+            TokenType.ARGUMENT,
+        ] and not isinstance(value, str):
             raise ValueError("This token type requires a string value")
         self.type = type
         self.value = value
 
     def __str__(self):
         if self.value is not None:
-            return f'{self.type.name}({self.value})'
+            return f"{self.type.name}({self.value})"
         return self.type.name

@@ -15,10 +15,17 @@ SQLITE3_BUILD_IN_TYPE = ["INTEGER", "REAL", "TEXT", "BLOB"]
 
 
 class DB:
+    @staticmethod
+    def __dict_factory(cursor, row):
+        d = {}
+        for idx, col in enumerate(cursor.description):
+            d[col[0]] = row[idx]
+        return d
+
     def __init__(self, db_dir):
         self.connection = sqlite3.connect(db_dir)
+        self.connection.row_factory = self.__dict_factory
         self.cursor = self.connection.cursor()
-        self.lastrowid = -1
 
     def execute(self, sql_command, args=None):
         try:
@@ -29,12 +36,17 @@ class DB:
         except Exception as e:
             raise CanfigException(e)
 
+    def get_lastrowid(self):
+        return self.cursor.lastrowid
+
     def commit(self):
         self.connection.commit()
-        self.lastrowid = self.cursor.lastrowid
 
     def rollback(self):
         self.connection.rollback()
+
+    def fetchall(self) -> list:
+        return self.cursor.fetchall()
 
     def close(self):
         self.connection.close()
@@ -59,7 +71,7 @@ def CREATE_TABLE_plan(table_name: str, sql: str, FKs: Optional[list] = None):
 
 def CREATE_BUILD_IN_plan(build_in_type: str):
     assert (
-        build_in_type in SQLITE3_BUILD_IN_TYPE
+            build_in_type in SQLITE3_BUILD_IN_TYPE
     ), f"'{build_in_type}' is not build-in type in SQLITE3"
     return f"""
     CREATE TABLE IF NOT EXISTS {build_in_type} (
@@ -105,19 +117,21 @@ def pre_sql_get_args(pre_sql, patterns: set, neg=False):
 
 
 class Plan:
-    __plans = []
-    __taps = []
+    __write_plans = []
+    __write_taps = []
+    __read_plans = []
+    __read_taps = []
+
     __init_flag = False
 
-    __LR_state = -1
+    __LR_state = "LR_VAL"
 
     __plan_callback = None
     __build_flag = False
 
     class Operation(Enum):
-        EXE_BUF = auto()  # execute plan buffer
+        EXECUTE = auto()  # execute plan buffer
         UP_LR_STATE = auto()  # update last row state
-        NXT_BUF = auto()  # next plan buffer
 
     def __init__(self):
         pass
@@ -134,39 +148,45 @@ class Plan:
 
         return closure
 
-    def __init_std_plan(self, table_name: str, config_name: str, value: dict):
-        """
-
-        :param table_name: origin table name
-        :param config_name: config name
-        :param value: { 'data': "str" }
-        :return: void
-        """
+    def __init_std_plan(self, table_name: str, _config_name: str, value: str | int):
         assert not self.__init_flag, "plan already initialized."
+        assert isinstance(value, str) or isinstance(value, int), "standard plan value must be a string or int"
 
-        self.__plans.append(
+        self.__write_plans.append(
             self.__plan_closure_maker(
                 f"""
                     UPDATE {table_name} SET 
-                    {config_name} = {"'" + value['data'] + "'" if isinstance(value['data'], str) else value['data']}
+                    {_config_name} = {"'" + value + "'" if isinstance(value, str) else value}
                     WHERE {table_name}_id = 1;
                 """
             )
         )
-        self.__taps.append(self.Operation.EXE_BUF)
+        self.__write_taps.append(self.Operation.EXECUTE)
         self.__init_flag = True
 
+        # make read plan
+        self.__read_plans.append(
+            self.__plan_closure_maker(
+                f"""
+                    SELECT {_config_name} FROM {table_name} WHERE {table_name}_id = 1;
+                """
+            )
+        )
+
+        self.__read_taps.append(self.Operation.EXECUTE)
+
     def __init_ext_plan(
-        self, table_name: str, ext_table_name: str, config_name: str, values: dict
+            self, table_name: str, ext_table_name: str, _config_name: str, values: dict
     ):
         assert not self.__init_flag, "plan already initialized."
+        assert isinstance(values, dict), "values must be a dict"
 
         values_f = [
             f"'{value}'" if isinstance(value, str) else str(value)
             for value in values.values()
         ]
 
-        self.__plans.append(
+        self.__write_plans.append(
             self.__plan_closure_maker(
                 f"""
                     INSERT INTO {ext_table_name} ({",".join(values.keys())})
@@ -174,107 +194,169 @@ class Plan:
                 """
             )
         )
-        self.__taps.append(self.Operation.EXE_BUF)
-        self.__taps.append(self.Operation.UP_LR_STATE)
+        self.__write_taps.append(self.Operation.EXECUTE)
+        self.__write_taps.append(self.Operation.UP_LR_STATE)
 
-        self.__plans.append(
+        self.__write_plans.append(
             self.__plan_closure_maker(
                 f"""
-                    UPDATE {table_name} SET {config_name} = __LR_VAL__
+                    UPDATE {table_name} SET {_config_name} = __LR_VAL__
                     WHERE {table_name}_id = 1
                 """
             )
         )
-        self.__taps.append(self.Operation.EXE_BUF)
+        self.__write_taps.append(self.Operation.EXECUTE)
         self.__init_flag = True
+
+        self.__read_plans.append(
+            self.__plan_closure_maker(
+                f"""
+                    SELECT {",".join(values.keys())} FROM {ext_table_name}
+                    WHERE {ext_table_name}_id = (
+                        SELECT {_config_name} FROM {table_name} WHERE {table_name}_id = 1
+                    )
+                """
+            )
+        )
+
+        self.__read_taps.append(self.Operation.EXECUTE)
 
     def __init_list_plan(
-        self, table_name: str, ext_table_name: str, config_name: str, values: dict
+            self, table_name: str, ext_table_name: str, values: list[Dict]
     ):
         assert not self.__init_flag, "plan already initialized."
+        assert isinstance(values, list), "list plan values must be a list"
 
-        values_f = [
-            f"'{value}'" if isinstance(value, str) else str(value)
-            for value in values.values()
-        ]
+        self.__write_plans.extend(
+            [
+                self.__plan_closure_maker(
+                    f'''
+                        DELETE FROM {table_name};
+                '''
+                ),
+                self.__plan_closure_maker(
+                    f'''
+                        DELETE FROM {ext_table_name}_{table_name};
+                    '''
+                )
+            ]
+        )
 
-        self.__plans.append(
+        self.__write_taps.append(self.Operation.EXECUTE)
+        self.__write_taps.append(self.Operation.EXECUTE)
+
+        for config in values:
+            values_f = [
+                f"'{value}'" if isinstance(value, str) else str(value)
+                for value in config.values()
+            ]
+
+            self.__write_plans.append(
+                self.__plan_closure_maker(
+                    f"""
+                        INSERT INTO {ext_table_name} ({",".join(config.keys())})
+                        VALUES ({",".join(values_f)});
+                    """
+                )
+            )
+
+            self.__write_taps.append(self.Operation.EXECUTE)
+            self.__write_taps.append(self.Operation.UP_LR_STATE)
+
+            self.__write_plans.append(
+                self.__plan_closure_maker(
+                    f"""
+                        INSERT INTO {ext_table_name}_{table_name}  ({ext_table_name}_id, {table_name}_id)
+                        VALUES (__LR_VAL__, 1)
+                    """
+                )
+            )
+
+            self.__write_taps.append(self.Operation.EXECUTE)
+
+        self.__read_plans.append(
             self.__plan_closure_maker(
                 f"""
-                    INSERT INTO {ext_table_name} ({",".join(values.keys())})
-                    VALUES ({",".join(values_f)});
+                    SELECT {",".join(values[0].keys())} FROM {ext_table_name}
+                    WHERE {ext_table_name}_id IN (
+                        SELECT {ext_table_name}_id FROM {ext_table_name}_{table_name}
+                        WHERE {table_name}_id = 1 
+                    )
                 """
             )
         )
 
-        self.__taps.append(self.Operation.EXE_BUF)
-        self.__taps.append(self.Operation.UP_LR_STATE)
+        self.__read_taps.append(self.Operation.EXECUTE)
 
-        self.__plans.append(
-            self.__plan_closure_maker(
-                f"""
-                    INSERT INTO {ext_table_name}_{table_name}  ({config_name}_id, {table_name}_id)
-                    VALUES (__LR_VAL__, 1)
-                """
-            )
-        )
-
-        self.__taps.append(self.Operation.EXE_BUF)
         self.__init_flag = True
 
-    def init_std_plan(self, table_name: str, config_name: str):
-        def closure(values: dict):
-            return self.__init_std_plan(table_name, config_name, values)
+    def init_std_plan(self, table_name: str, _config_name: str):
+        def closure(values: str):
+            return self.__init_std_plan(table_name, _config_name, values)
 
         self.__plan_callback = closure
 
-    def init_ext_plan(self, table_name: str, ext_table_name: str, config_name: str):
+    def init_ext_plan(self, table_name: str, ext_table_name: str, _config_name: str):
         def closure(values: dict):
-            return self.__init_ext_plan(table_name, ext_table_name, config_name, values)
+            return self.__init_ext_plan(table_name, ext_table_name, _config_name, values)
 
         self.__plan_callback = closure
 
-    def init_list_plan(self, table_name: str, ext_table_name: str, config_name: str):
-        def closure(values: dict):
+    def init_list_plan(self, table_name: str, ext_table_name: str):
+        def closure(values: list):
             return self.__init_list_plan(
-                table_name, ext_table_name, config_name, values
+                table_name, ext_table_name, values
             )
 
         self.__plan_callback = closure
 
-    def build(self, values: dict):
+    def build(self, values):
         assert not self.__build_flag, "plan already built"
         self.__plan_callback(values)
         self.__build_flag = True
 
-    def execute(self, db: DB):
+    def execute(self, _db: DB):
         assert self.__build_flag, "build the plan before execute"
         plan_cursor = 0
 
-        for tap in self.__taps:
+        for tap in self.__write_taps:
             if tap == self.Operation.UP_LR_STATE:
-                self.__LR_state = db.lastrowid
-            elif tap == self.Operation.EXE_BUF:
-                db.execute(self.__plans[plan_cursor]())
+                self.__LR_state = _db.get_lastrowid()
+            elif tap == self.Operation.EXECUTE:
+                _db.execute(self.__write_plans[plan_cursor]())
+                _db.commit()
                 plan_cursor += 1
             else:
                 raise Exception("wrong plan operation")
 
-        db.commit()
         self.__LR_state = -1
+
+    def view(self, _db: DB) -> list:
+        assert self.__build_flag, "build the plan before execute"
+        plan_cursor = 0
+        ret = []
+
+        for tap in self.__read_taps:
+            if tap == self.Operation.EXECUTE:
+                _db.execute(self.__read_plans[plan_cursor]())
+                plan_cursor += 1
+
+        ret.append(_db.fetchall())
+
+        return ret
 
     def __str__(self):
         plan_cursor = 0
-        ret = f"Plan (total: {len(self.__taps)})\n"
+        ret = "-" * 20
+        ret += f"\nWrite Plan (total: {len(self.__write_taps)})\n"
         ret += "-" * 20
         if self.__build_flag:
-            for i, tap in enumerate(self.__taps):
+            for i, tap in enumerate(self.__write_taps):
                 ret += f"\nStep {i + 1}: \n"
                 if tap == self.Operation.UP_LR_STATE:
-                    self.__LR_state = db.lastrowid
-                    ret += "\nUPDATE LR_VAL\n"
-                elif tap == self.Operation.EXE_BUF:
-                    ret += self.__plans[plan_cursor]()
+                    ret += "\n\t\tUPDATE LR_VAL\n"
+                elif tap == self.Operation.EXECUTE:
+                    ret += self.__write_plans[plan_cursor]()
                     plan_cursor += 1
                 else:
                     raise Exception("wrong plan operation")
@@ -283,6 +365,24 @@ class Plan:
         else:
             ret += "\nNOT BUILD YET\n"
         ret += "-" * 20
+
+        plan_cursor = 0
+        ret += f"\nRead Plan (total: {len(self.__read_taps)})\n"
+        ret += "-" * 20
+        if self.__build_flag:
+            for i, tap in enumerate(self.__read_taps):
+                ret += f"\nStep {i + 1}: \n"
+                if tap == self.Operation.EXECUTE:
+                    ret += self.__read_plans[plan_cursor]()
+                    plan_cursor += 1
+                else:
+                    raise Exception("wrong plan operation")
+
+            ret += "\n"
+        else:
+            ret += "\nNOT BUILD YET\n"
+        ret += "-" * 20
+
         return ret
 
 
@@ -375,19 +475,19 @@ if __name__ == "__main__":
             m2m_plans = []
             m2m_tables = []
 
-            if ret := re.findall(
-                r"(\w+)\s+LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)", plan["sql"]
+            if list_matches := re.findall(
+                    r"(\w+)\s+LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)", plan["sql"]
             ):
                 # Evaluate LIST, basically create many-to-many relation with the
                 # list argument.
-                for field_pair in ret:
+                for field_pair in list_matches:
                     config_name, req_struct = field_pair
                     if req_struct not in struct_set:
                         # create missing struct
                         if not bool(re.fullmatch(r"\w+\([^()]*\)", req_struct)):
                             # case 1: not pre-sql type, that is build-in-type
                             assert (
-                                req_struct in SQLITE3_BUILD_IN_TYPE
+                                    req_struct in SQLITE3_BUILD_IN_TYPE
                             ), f"invalid type LIST{req_struct}"
                             db.execute(CREATE_BUILD_IN_plan(req_struct))
                             print(f"evaluate build-in struct: {req_struct}")
@@ -425,7 +525,6 @@ if __name__ == "__main__":
                     plan_ptr.init_list_plan(
                         table_name=plan["name"],
                         ext_table_name=post_struct,
-                        config_name=req_struct,
                     )
 
                     # should be consistent on how CREATE_M2M_plan create m2m table name
@@ -445,7 +544,7 @@ if __name__ == "__main__":
                 plan_ptr.init_ext_plan(
                     table_name=plan["name"],
                     ext_table_name=PreSQL.format_struct_to_name(ref[1]),
-                    config_name=ref[0],
+                    _config_name=ref[0],
                 )
 
                 struct_ref_fks.append((ref[0], PreSQL.format_struct_to_name(ref[1])))
@@ -457,7 +556,7 @@ if __name__ == "__main__":
             for ref in pre_sql_get_args(plan["sql"], struct_set, True):
                 if ref[1] != "NULL":
                     plan_ptr = assign_plan(final_plan, plan, ref[0])
-                    plan_ptr.init_std_plan(table_name=plan["name"], config_name=ref[0])
+                    plan_ptr.init_std_plan(table_name=plan["name"], _config_name=ref[0])
 
             # create db
             db_query = CREATE_TABLE_plan(
@@ -476,15 +575,37 @@ if __name__ == "__main__":
 
             print(f"finish evaluate config: {plan['name']}")
 
-    # # TEST CASE
-    # final_plan['Server']['commands'].build({
-    #     "name": "sample name",
-    #     "description": "hello world, 你好世界"
-    # })
-    # print(final_plan['Server']['commands'])
-    # final_plan['Server']['commands'].execute(db)
+    # TEST CASE
+    final_plan['Server']['port'].build(8080)
+    print(final_plan['Server']['port'])
+    final_plan['Server']['port'].execute(db)
 
-    with open("sample/sample.cando", "wb") as f:
-        pickle.dump(final_plan, f)
+    print(final_plan['Server']['port'].view(db)[0][0])
+
+    final_plan['Server']['alive_time'].build(
+        {
+            "minute": 29,
+            "second": 20
+        }
+    )
+
+    final_plan['Server']['alive_time'].execute(db)
+    print(final_plan['Server']['alive_time'])
+    print(final_plan['Server']['alive_time'].view(db)[0][0])
+
+    final_plan['Server']['commands'].build([
+        {
+            "name": "sample name",
+            "description": "sample description",
+        },
+        {
+            "name": "sample name2",
+            "description": "sample description2",
+        }
+    ])
+    print(final_plan['Server']['commands'])
+    final_plan['Server']['commands'].execute(db)
+
+    print(final_plan['Server']['commands'].view(db)[0])
 
     db.close()

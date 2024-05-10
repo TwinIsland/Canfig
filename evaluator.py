@@ -7,7 +7,7 @@ import re
 from typing import Dict, Optional
 from enum import Enum, auto
 
-from pprint import pprint
+from utils import CanfigException
 
 DB_FILE = 'canfig.sqlite3'
 
@@ -21,10 +21,13 @@ class DB:
         self.lastrowid = -1
 
     def execute(self, sql_command, args=None):
-        if args:
-            self.cursor.execute(sql_command, args)
-        else:
-            self.cursor.execute(sql_command)
+        try:
+            if args:
+                self.cursor.execute(sql_command, args)
+            else:
+                self.cursor.execute(sql_command)
+        except Exception as e:
+            raise CanfigException(e)
 
     def commit(self):
         self.connection.commit()
@@ -225,7 +228,7 @@ class Plan:
     def __str__(self):
         plan_cursor = 0
         ret = f"Plan (total: {len(self.__taps)})\n"
-        ret += "-" * 10
+        ret += "-" * 20
         if self.__build_flag:
             for i, tap in enumerate(self.__taps):
                 ret += f"\nStep {i + 1}: \n"
@@ -241,7 +244,7 @@ class Plan:
             ret += "\n"
         else:
             ret += "\nNOT BUILD YET\n"
-        ret += "-" * 10
+        ret += "-" * 20
         return ret
 
 
@@ -321,8 +324,6 @@ if __name__ == '__main__':
                 print(f"evaluate struct: {plan['name']}")
 
     # evaluate CONFIG
-    import time
-
     for plan in cplan_data['sql_query']:
         if plan['type'] == 'CONFIG':
             # print(plan['sql'])
@@ -417,13 +418,12 @@ if __name__ == '__main__':
 
             print(f"finish evaluate config: {plan['name']}")
 
-    pprint(final_plan)
+    # pprint(final_plan)
     final_plan['Server']['alive_time'].build({
         "minute": 27,
         "second": 12
     })
     print(final_plan['Server']['alive_time'])
+    final_plan['Server']['alive_time'].execute(db)
 
-    # with open(cplan_file, 'wb') as f:
-    #     pickle.dump(final_plan, f)
     db.close()

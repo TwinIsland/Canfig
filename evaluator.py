@@ -71,7 +71,7 @@ def CREATE_TABLE_plan(table_name: str, sql: str, FKs: Optional[list] = None):
 
 def CREATE_BUILD_IN_plan(build_in_type: str):
     assert (
-            build_in_type in SQLITE3_BUILD_IN_TYPE
+        build_in_type in SQLITE3_BUILD_IN_TYPE
     ), f"'{build_in_type}' is not build-in type in SQLITE3"
     return f"""
     CREATE TABLE IF NOT EXISTS {build_in_type} (
@@ -150,7 +150,9 @@ class Plan:
 
     def __init_std_plan(self, table_name: str, _config_name: str, value: str | int):
         assert not self.__init_flag, "plan already initialized."
-        assert isinstance(value, str) or isinstance(value, int), "standard plan value must be a string or int"
+        assert isinstance(value, str) or isinstance(
+            value, int
+        ), "standard plan value must be a string or int"
 
         self.__write_plans.append(
             self.__plan_closure_maker(
@@ -176,7 +178,7 @@ class Plan:
         self.__read_taps.append(self.Operation.EXECUTE)
 
     def __init_ext_plan(
-            self, table_name: str, ext_table_name: str, _config_name: str, values: dict
+        self, table_name: str, ext_table_name: str, _config_name: str, values: dict
     ):
         assert not self.__init_flag, "plan already initialized."
         assert isinstance(values, dict), "values must be a dict"
@@ -222,7 +224,7 @@ class Plan:
         self.__read_taps.append(self.Operation.EXECUTE)
 
     def __init_list_plan(
-            self, table_name: str, ext_table_name: str, values: list[Dict]
+        self, table_name: str, ext_table_name: str, values: list[Dict]
     ):
         assert not self.__init_flag, "plan already initialized."
         assert isinstance(values, list), "list plan values must be a list"
@@ -230,15 +232,15 @@ class Plan:
         self.__write_plans.extend(
             [
                 self.__plan_closure_maker(
-                    f'''
+                    f"""
                         DELETE FROM {table_name};
-                '''
+                """
                 ),
                 self.__plan_closure_maker(
-                    f'''
+                    f"""
                         DELETE FROM {ext_table_name}_{table_name};
-                    '''
-                )
+                    """
+                ),
             ]
         )
 
@@ -298,15 +300,15 @@ class Plan:
 
     def init_ext_plan(self, table_name: str, ext_table_name: str, _config_name: str):
         def closure(values: dict):
-            return self.__init_ext_plan(table_name, ext_table_name, _config_name, values)
+            return self.__init_ext_plan(
+                table_name, ext_table_name, _config_name, values
+            )
 
         self.__plan_callback = closure
 
     def init_list_plan(self, table_name: str, ext_table_name: str):
         def closure(values: list):
-            return self.__init_list_plan(
-                table_name, ext_table_name, values
-            )
+            return self.__init_list_plan(table_name, ext_table_name, values)
 
         self.__plan_callback = closure
 
@@ -473,7 +475,7 @@ if __name__ == "__main__":
             m2m_tables = []
 
             if list_matches := re.findall(
-                    r"(\w+)\s+LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)", plan["sql"]
+                r"(\w+)\s+LIST\(([^()]*(?:\([^)]*\))?[^()]*)\)", plan["sql"]
             ):
                 # Evaluate LIST, basically create many-to-many relation with the
                 # list argument.
@@ -484,7 +486,7 @@ if __name__ == "__main__":
                         if not bool(re.fullmatch(r"\w+\([^()]*\)", req_struct)):
                             # case 1: not pre-sql type, that is build-in-type
                             assert (
-                                    req_struct in SQLITE3_BUILD_IN_TYPE
+                                req_struct in SQLITE3_BUILD_IN_TYPE
                             ), f"invalid type LIST{req_struct}"
                             db.execute(CREATE_BUILD_IN_plan(req_struct))
                             print(f"evaluate build-in struct: {req_struct}")
@@ -573,36 +575,33 @@ if __name__ == "__main__":
             print(f"finish evaluate config: {plan['name']}")
 
     # TEST CASE
-    final_plan['Server']['port'].bind(8080)
+    final_plan["Server"]["port"].bind(8080)
     # print(final_plan['Server']['port'])
-    final_plan['Server']['port'].execute(db)
+    final_plan["Server"]["port"].execute(db)
 
-    print(final_plan['Server']['port'].view(db))
+    print(final_plan["Server"]["port"].view(db))
 
-    final_plan['Server']['alive_time'].bind(
-        {
-            "minute": 29,
-            "second": 20
-        }
-    )
+    final_plan["Server"]["alive_time"].bind({"minute": 29, "second": 20})
 
-    final_plan['Server']['alive_time'].execute(db)
+    final_plan["Server"]["alive_time"].execute(db)
     # print(final_plan['Server']['alive_time'])
-    print(final_plan['Server']['alive_time'].view(db))
+    print(final_plan["Server"]["alive_time"].view(db))
 
-    final_plan['Server']['commands'].bind([
-        {
-            "name": "sample name",
-            "description": "sample description",
-        },
-        {
-            "name": "sample name2",
-            "description": "sample description2",
-        }
-    ])
+    final_plan["Server"]["commands"].bind(
+        [
+            {
+                "name": "sample name",
+                "description": "sample description",
+            },
+            {
+                "name": "sample name2",
+                "description": "sample description2",
+            },
+        ]
+    )
     # print(final_plan['Server']['commands'])
-    final_plan['Server']['commands'].execute(db)
+    final_plan["Server"]["commands"].execute(db)
 
-    print(final_plan['Server']['commands'].view(db))
+    print(final_plan["Server"]["commands"].view(db))
 
     db.close()

@@ -310,13 +310,13 @@ class Plan:
 
         self.__plan_callback = closure
 
-    def build(self, values):
+    def bind(self, values):
         assert not self.__build_flag, "plan already built"
         self.__plan_callback(values)
         self.__build_flag = True
 
     def execute(self, _db: DB):
-        assert self.__build_flag, "build the plan before execute"
+        assert self.__build_flag, "bind the plan before execute"
         plan_cursor = 0
 
         for tap in self.__write_taps:
@@ -334,16 +334,13 @@ class Plan:
     def view(self, _db: DB) -> list:
         assert self.__build_flag, "build the plan before execute"
         plan_cursor = 0
-        ret = []
 
         for tap in self.__read_taps:
             if tap == self.Operation.EXECUTE:
                 _db.execute(self.__read_plans[plan_cursor]())
                 plan_cursor += 1
 
-        ret.append(_db.fetchall())
-
-        return ret
+        return _db.fetchall()
 
     def __str__(self):
         plan_cursor = 0
@@ -576,13 +573,13 @@ if __name__ == "__main__":
             print(f"finish evaluate config: {plan['name']}")
 
     # TEST CASE
-    final_plan['Server']['port'].build(8080)
-    print(final_plan['Server']['port'])
+    final_plan['Server']['port'].bind(8080)
+    # print(final_plan['Server']['port'])
     final_plan['Server']['port'].execute(db)
 
-    print(final_plan['Server']['port'].view(db)[0][0])
+    print(final_plan['Server']['port'].view(db))
 
-    final_plan['Server']['alive_time'].build(
+    final_plan['Server']['alive_time'].bind(
         {
             "minute": 29,
             "second": 20
@@ -590,10 +587,10 @@ if __name__ == "__main__":
     )
 
     final_plan['Server']['alive_time'].execute(db)
-    print(final_plan['Server']['alive_time'])
-    print(final_plan['Server']['alive_time'].view(db)[0][0])
+    # print(final_plan['Server']['alive_time'])
+    print(final_plan['Server']['alive_time'].view(db))
 
-    final_plan['Server']['commands'].build([
+    final_plan['Server']['commands'].bind([
         {
             "name": "sample name",
             "description": "sample description",
@@ -603,9 +600,9 @@ if __name__ == "__main__":
             "description": "sample description2",
         }
     ])
-    print(final_plan['Server']['commands'])
+    # print(final_plan['Server']['commands'])
     final_plan['Server']['commands'].execute(db)
 
-    print(final_plan['Server']['commands'].view(db)[0])
+    print(final_plan['Server']['commands'].view(db))
 
     db.close()

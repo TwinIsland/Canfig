@@ -575,18 +575,18 @@ if __name__ == "__main__":
             print(f"finish evaluate config: {plan['name']}")
 
     # TEST CASE
-    final_plan["Server"]["port"].bind(8080)
+    # final_plan["Server"]["port"].bind(8080)
     # print(final_plan['Server']['port'])
-    final_plan["Server"]["port"].execute(db)
-
-    print(final_plan["Server"]["port"].view(db))
-
-    final_plan["Server"]["alive_time"].bind({"minute": 29, "second": 20})
-
-    final_plan["Server"]["alive_time"].execute(db)
+    # final_plan["Server"]["port"].execute(db)
+    # 
+    # print(final_plan["Server"]["port"].view(db))
+    # 
+    # final_plan["Server"]["alive_time"].bind({"minute": 29, "second": 20})
+    #
+    # final_plan["Server"]["alive_time"].execute(db)
     # print(final_plan['Server']['alive_time'])
-    print(final_plan["Server"]["alive_time"].view(db))
-
+    # print(final_plan["Server"]["alive_time"].view(db))
+    # 
     final_plan["Server"]["commands"].bind(
         [
             {
@@ -599,9 +599,18 @@ if __name__ == "__main__":
             },
         ]
     )
-    # print(final_plan['Server']['commands'])
+    print(final_plan['Server']['commands'])
     final_plan["Server"]["commands"].execute(db)
 
     print(final_plan["Server"]["commands"].view(db))
+
+    # final_plan["Server"]["alive_time"].bind(
+    #     {
+    #         "minute": 12,
+    #         "second": 12,
+    #     }
+    # )
+    # final_plan["Server"]["alive_time"].execute(db)
+    # print(final_plan["Server"]["alive_time"])
 
     db.close()

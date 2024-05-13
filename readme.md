@@ -23,7 +23,7 @@ python3 compiler.py sample/sample.cand
 
 #### **Step 3: Evaluate the Candy**
 
-there is a comprehensive test case inside the evaluator, so, to evaluate/run, just execute:
+there is a comprehensive test case inside the evaluator, so, to evaluate/test, just run:
 
 ```shell
 python3 evaluator.py sample/sample.candy

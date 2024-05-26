@@ -26,6 +26,6 @@ python3 compiler.py sample/sample.cand
 there is a comprehensive test case inside the evaluator, so, to evaluate/test, just run:
 
 ```shell
-python3 evaluator.py sample/sample.candy
+python3 canfig.py sample/sample.candy
 ```
 

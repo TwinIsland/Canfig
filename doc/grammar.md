@@ -27,13 +27,6 @@ CONFIG Server: {
 };
 ```
 
-- `SLICE`: Similar to a view (`VIEW`) in SQL, this keyword allows the definition of slices using set operators. Slices are dynamic selections of data from one or more configurations that behave as virtual configurations. They are particularly useful for creating customized views or subsets of configurations based on specific criteria.
-
-```
-SLICE Default       = {};
-SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
-```
-
 - `TRIGGER`: similar to trigger for database, but use Python code to define trigger
 
 ```
@@ -44,6 +37,15 @@ TRIGGER ServerChangeAction WHEN CHANGE Server {
         return CANFIG_ERR(msg=err_msg)
 };
 ```
+
+- `SLICE`: Similar to a view (`VIEW`) in SQL, this keyword allows the definition of slices using set operators. Slices are dynamic selections of data from one or more configurations that behave as virtual configurations. They are particularly useful for creating customized views or subsets of configurations based on specific criteria.
+
+> NOT IMPLEMENTED YET!
+```
+SLICE Default       = {};
+SLICE UserConfig    = (Runner - {Runner.commands}) + {Server.name, Server.port, Server.description};
+```
+
 > Complete sample can be find in: [sample.cand](../sample/sample.cand)
 
 By following these steps and utilizing the Canfig language keywords, developers can efficiently define, manage, and utilize complex configurations within their applications.

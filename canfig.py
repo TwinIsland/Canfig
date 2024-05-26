@@ -34,6 +34,49 @@ def SET(field_dir: str, values) -> None:
     field_plan.execute(db)
 
 
+def CANFIG_ERR(msg: str):
+    raise TriggerException(msg)
+
+
+def CANFIG_WARN(msg: str):
+    print(f"Trigger Warning: {msg}")
+
+
+def ASSERT_REGEX(target, pattern: bytes):
+    if not target:
+        return None
+    if not re.match(pattern, target):
+        return f"Value '{target}' does not match the pattern '{pattern}'"
+    return None
+
+
+# Assert function for equality check
+def ASSERT_EQUAL(target, dest):
+    return target == dest
+
+
+# Assert function for uniqueness
+def ASSERT_UNIQUE(list, getter):
+    seen = set()
+    for item in list:
+        value = getter(item)
+        if value in seen:
+            return f"Duplicate value found: '{value}'"
+        seen.add(value)
+    return None
+
+
+def format_code(code_string):
+    # Split the code string into lines
+    lines = code_string.split('\n')
+
+    # Remove 2 spaces of indentation from each line
+    unindented_lines = [line[4:] if line.startswith('    ') else line for line in lines]
+
+    # Join the lines back into a single string
+    return '\n'.join(unindented_lines)
+
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <input_file>")
@@ -182,7 +225,6 @@ if __name__ == '__main__':
             print(f"finish evaluate config: {plan['name']}")
 
     # Registering Phase
-
     for trigger_info in cplan_data['triggers']:
         assert trigger_info[
                    'condition'] in final_plan, f"fail to register Trigger '{trigger_info['name']} " \
@@ -190,15 +232,15 @@ if __name__ == '__main__':
                                                f"due to Config {trigger_info['condition']}' not exist"
 
         for field_name, field_plan in final_plan[trigger_info['condition']].items():
-            # TODO: inject environment and locals to convert program string to callable
-            trigger_func: Callable = lambda a: a
-            field_plan.add_trigger(trigger_info['name'], trigger_func)
+            field_plan.add_trigger(trigger_info['name'], format_code(trigger_info['cmd']), globals())
+            print(f"register trigger '{trigger_info['name']}' for '{field_name}'")
+
     # # TEST CASE
-    # final_plan["Server"]["port"].bind(8080)
-    # print(final_plan['Server']['port'])
-    # final_plan["Server"]["port"].execute(db)
-    #
-    # print(final_plan["Server"]["port"].view(db))
+    final_plan["Server"]["port"].bind(8128)
+    print(final_plan['Server']['port'])
+    final_plan["Server"]["port"].execute(db)
+
+    print(final_plan["Server"]["port"].view(db))
     #
     # final_plan["Server"]["alive_time"].bind({"minute": 29, "second": 20})
     #

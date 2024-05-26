@@ -47,18 +47,18 @@ CONFIG Runner {
 (* TRIGGER *)
 TRIGGER ServerChangeAction WHEN CHANGE Server {
     # python interpreter integration
-    if GET("Server.run") = 0:
+    if GET("Server.run") == 0:
         SET(Runner.flag, 0)
 
-    if err_msg := ASSERT_REGEX(target=GET("Server.name"), pattern="server-[a|b|c]"):
-        return CANFIG_ERR(msg=err_msg)
+    if err_msg := ASSERT_REGEX(target=GET("Server.name"), pattern=r"server-[a|b|c]"):
+        CANFIG_WARN(msg=err_msg)
 
-    if ASSERT_EQUAL(target=GET("Server.port"), dest=8000):
-        return CANFIG_WARN(msg="the server port use port 8000")
+    if ASSERT_EQUAL(target=GET("Server.port")[0]['port'], dest=8000):
+        CANFIG_ERR(msg="the server port use port 8000")
 
-    if err_msg := ASSERT_UNQIUE(list=GET("Server.commands"),
+    if err_msg := ASSERT_UNIQUE(list=GET("Server.commands"),
                                 getter=lambda obj: obj['name']):
-        return CANFIG_ERR(msg=err_msg)
+        CANFIG_ERR(msg=err_msg)
 };
 
 (* SLICE *)

@@ -126,7 +126,7 @@ class Plan:
     __plan_callback = None
     __build_flag = False
 
-    __write_callbacks: Dict[str, Callable] = {}
+    __write_callbacks: Dict[str, tuple] = {}
 
     class Operation(Enum):
         EXECUTE = auto()  # execute plan buffer
@@ -338,15 +338,17 @@ class Plan:
         self.__LR_state = -1
 
         # execute trigger callbacks
-        for callback_name, callback_func in self.__write_callbacks.items():
-            if isinstance(ret := callback_func(), TriggerException):
+        for callback_name, (trigger_func_str, env) in self.__write_callbacks.items():
+            if isinstance(ret := exec(trigger_func_str, env), TriggerException):
                 _db.rollback()
                 raise TriggerException(f"Trigger '{callback_name}' failed: {ret.message}")
 
         print("execute success!")
 
     def view(self, _db: DB) -> list:
-        assert self.__build_flag, "build the plan before execute"
+        if not self.__build_flag:
+            return []
+
         plan_cursor = 0
 
         for tap in self.__read_taps:
@@ -356,8 +358,8 @@ class Plan:
 
         return _db.fetchall()
 
-    def add_trigger(self, trigger_name: str, trigger_func: Callable):
-        self.__write_callbacks[trigger_name] = trigger_func
+    def add_trigger(self, trigger_name: str, trigger_func_str: str, env: dict):
+        self.__write_callbacks[trigger_name] = (trigger_func_str, env)
 
     def __str__(self):
         plan_cursor = 0

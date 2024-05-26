@@ -15,7 +15,7 @@ Additionally, enhance your development experience with our simple syntax highlig
 
 #### **Step 2: Compile the Definition**
 
-Compile your `.cand` file into a `.candy` executable configuration using our Python-based compiler:
+Compile your `.cand` file into a `.candy` intermediate plan using our Python-based compiler:
 
 ```shell
 python3 compiler.py sample.cand

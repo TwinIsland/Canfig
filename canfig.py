@@ -232,20 +232,21 @@ if __name__ == '__main__':
                                                f"due to Config {trigger_info['condition']}' not exist"
 
         for field_name, field_plan in final_plan[trigger_info['condition']].items():
+            # TODO: buggy, globals shouldn't be pass to add_trigger, but need to dynamically get in evaluator
             field_plan.add_trigger(trigger_info['name'], format_code(trigger_info['cmd']), globals())
             print(f"register trigger '{trigger_info['name']}' for '{field_name}'")
 
-    # # TEST CASE
+    # # # TEST CASE
     final_plan["Server"]["port"].bind(8128)
-    print(final_plan['Server']['port'])
+    # print(final_plan['Server']['port'])
     final_plan["Server"]["port"].execute(db)
 
     print(final_plan["Server"]["port"].view(db))
-    #
+
     # final_plan["Server"]["alive_time"].bind({"minute": 29, "second": 20})
     #
     # final_plan["Server"]["alive_time"].execute(db)
-    # print(final_plan['Server']['alive_time'])
+    # # print(final_plan['Server']['alive_time'])
     # print(final_plan["Server"]["alive_time"].view(db))
     #
     # final_plan["Server"]["commands"].bind(
@@ -260,7 +261,7 @@ if __name__ == '__main__':
     #         },
     #     ]
     # )
-    # print(final_plan['Server']['commands'])
+    # # print(final_plan['Server']['commands'])
     # final_plan["Server"]["commands"].execute(db)
     #
     # print(final_plan["Server"]["commands"].view(db))
